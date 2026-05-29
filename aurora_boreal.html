@@ -152,9 +152,17 @@
     <div id="footer">Feito em Three.js · visual conceitual, não em escala física</div>
   </div>
 
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
   <script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const container = document.getElementById('app');
     const pitchSlider = document.getElementById('pitch');
@@ -505,8 +513,6 @@
 
       earth.rotation.y += dt * 0.05;
       atmosphere.rotation.y += dt * 0.06;
-      auroraNorth.rotation.y += dt * 0.06;
-      auroraSouth.rotation.y -= dt * 0.05;
       stars.rotation.y += dt * 0.004;
 
       updateParticle(dt);
@@ -525,10 +531,12 @@
       let BByBeq = 1;
 
       if (mirrorInfo.inLossCone) {
-        // Fall from north to south atmosphere repeatedly.
+        // Fall from north to south atmosphere repeatedly, at the same visual cadence
+        // as the trapped bounce mode. The loss-cone switch should change the end
+        // condition, not make the field-line motion look artificially slow.
         const thetaNorthAtm = mirrorInfo.thetaAtAtm;
         const thetaSouthAtm = Math.PI - mirrorInfo.thetaAtAtm;
-        const phase = (time * 0.22) % 2;
+        const phase = (time * bounceFreq * 2) % 2;
         if (phase < 1) {
           theta = THREE.MathUtils.lerp(thetaNorthAtm, thetaSouthAtm, phase);
           lastSign = theta < Math.PI / 2 ? +1 : -1;
@@ -589,7 +597,7 @@
       }
 
       if (followParticle) {
-        const desired = pos.clone().add(new THREE.Vector3(1.8, 0.9, 1.8));
+        const desired = center.clone().add(new THREE.Vector3(1.8, 0.9, 1.8));
         camera.position.lerp(desired, 0.03);
         controls.target.lerp(center, 0.06);
       }

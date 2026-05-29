@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulador Físico: duas bolinhas ligadas por uma corda frouxa</title>
+<style>
+  :root {
+    --bg: #0c111d;
+    --panel: #111827;
+    --ink: #eef2ff;
+    --muted: #98a2b3;
+    --line: #293548;
+    --accent: #60a5fa;
+    --danger: #fb7185;
+    --ok: #34d399;
+    --axis-x: #fb7185;
+    --axis-y: #34d399;
+    --axis-z: #60a5fa;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  header {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 18px 22px 8px;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 22px;
+    letter-spacing: 0;
+  }
+
+  main {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 12px 22px 24px;
+    display: grid;
+    grid-template-columns: minmax(620px, 1fr) 370px;
+    gap: 16px;
+  }
+
+  .stage,
+  .controls {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+  }
+
+  .stage {
+    min-height: 640px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #scene {
+    display: block;
+    width: 100%;
+    height: 640px;
+    background: #0f172a;
+  }
+
+  .controls {
+    padding: 14px 16px 16px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  label {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+
+  .value {
+    min-width: 78px;
+    color: var(--muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 14px 0 8px;
+  }
+
+  button {
+    border: 1px solid var(--line);
+    background: #182235;
+    border-radius: 8px;
+    padding: 9px 10px;
+    cursor: pointer;
+    font-weight: 650;
+    color: var(--ink);
+  }
+
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  button:hover { filter: brightness(0.98); }
+
+  .checks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 12px 0 6px;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    border: 1px solid #253247;
+    border-radius: 8px;
+    padding: 7px 9px;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+
+  .metrics {
+    margin-top: 14px;
+    border-top: 1px solid #253247;
+    padding-top: 12px;
+    font-size: 13px;
+  }
+
+  .metric {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 5px 0;
+    border-bottom: 1px dashed #253247;
+  }
+
+  .metric span:first-child { color: var(--muted); }
+  .metric span:last-child {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #1f2937;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .pill.taut {
+    background: rgba(52, 211, 153, 0.14);
+    color: var(--ok);
+  }
+
+  .pill.slack {
+    background: rgba(251, 191, 36, 0.14);
+    color: #fbbf24;
+  }
+
+  .note {
+    margin-top: 12px;
+    padding: 11px 12px;
+    background: #0f172a;
+    border: 1px solid #253247;
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  code {
+    background: #1f2937;
+    padding: 1px 4px;
+    border-radius: 5px;
+  }
+
+  @media (max-width: 980px) {
+    main {
+      grid-template-columns: 1fr;
+    }
+
+    .stage,
+    #scene {
+      min-height: 520px;
+      height: 520px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    header,
+    main {
+      padding-left: 14px;
+      padding-right: 14px;
+    }
+
+    .checks {
+      grid-template-columns: 1fr;
+    }
+
+    .stage,
+    #scene {
+      min-height: 430px;
+      height: 430px;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Simulador Físico: duas bolinhas ligadas por uma corda frouxa</h1>
+</header>
+
+<main>
+  <section class="stage">
+    <canvas id="scene"></canvas>
+  </section>
+
+  <aside class="controls">
+    <div class="row">
+      <label for="e">Coeficiente de restituição do tranco, e</label>
+      <div class="value" id="eVal"></div>
+      <input id="e" type="range" min="0" max="1" step="0.01" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="v0">Velocidade inicial, v0</label>
+      <div class="value" id="v0Val"></div>
+      <input id="v0" type="range" min="0.2" max="3" step="0.05" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="L">Comprimento da corda, l</label>
+      <div class="value" id="LVal"></div>
+      <input id="L" type="range" min="1" max="5" step="0.1" value="3" />
+    </div>
+
+    <div class="row">
+      <label for="offsetY">Separação inicial em Y, Y0</label>
+      <div class="value" id="offsetYVal"></div>
+      <input id="offsetY" type="range" min="-4" max="4" step="0.05" value="1.5" />
+    </div>
+
+    <div class="row">
+      <label for="offsetZ">Separação inicial em Z, Z0</label>
+      <div class="value" id="offsetZVal"></div>
+      <input id="offsetZ" type="range" min="-4" max="4" step="0.05" value="0" />
+    </div>
+
+    <div class="row">
+      <label for="speed">Velocidade da simulação</label>
+      <div class="value" id="speedVal"></div>
+      <input id="speed" type="range" min="0.1" max="3" step="0.1" value="1" />
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="play">Pausar</button>
+      <button id="reset">Resetar</button>
+      <button id="step">Um passo</button>
+      <button id="camera">Câmera inicial</button>
+    </div>
+
+    <div class="checks">
+      <label class="check"><input id="trail" type="checkbox" checked /> Rastro</label>
+      <label class="check"><input id="limitGuide" type="checkbox" checked /> Esfera guia</label>
+      <label class="check"><input id="autorotate" type="checkbox" /> Câmera Orbital</label>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><span>Estado da corda</span><span id="state"></span></div>
+      <div class="metric"><span>Tempo</span><span id="time"></span></div>
+      <div class="metric"><span>Distância entre bolinhas</span><span id="dist"></span></div>
+      <div class="metric"><span>Energia / energia inicial</span><span id="energy"></span></div>
+      <div class="metric"><span>|Momento angular| / inicial</span><span id="angmom"></span></div>
+      <div class="metric"><span>Choques com a corda</span><span id="hits"></span></div>
+      <div class="metric"><span>Primeiro contato previsto</span><span id="firstHit"></span></div>
+      <div class="metric"><span>Depois do 1º choque</span><span id="afterFirst"></span></div>
+    </div>
+
+    <div class="note">
+      Arraste a cena para orbitar a camera e use a roda do mouse para aproximar.
+      A esfera guia azul é apenas uma referência visual para o limite de cada bolinha em relação ao centro de massa.
+      Se <code>Y0</code> e <code>Z0</code> gerarem uma distância inicial entre bolinhas maior que <code>l</code>,
+      o simulador ajusta a direção para começar dentro da esfera permitida.
+    </div>
+  </aside>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const canvas = document.getElementById("scene");
+
+const controls = {
+  e: document.getElementById("e"),
+  v0: document.getElementById("v0"),
+  L: document.getElementById("L"),
+  offsetY: document.getElementById("offsetY"),
+  offsetZ: document.getElementById("offsetZ"),
+  speed: document.getElementById("speed"),
+};
+
+const out = {
+  eVal: document.getElementById("eVal"),
+  v0Val: document.getElementById("v0Val"),
+  LVal: document.getElementById("LVal"),
+  offsetYVal: document.getElementById("offsetYVal"),
+  offsetZVal: document.getElementById("offsetZVal"),
+  speedVal: document.getElementById("speedVal"),
+  state: document.getElementById("state"),
+  time: document.getElementById("time"),
+  dist: document.getElementById("dist"),
+  energy: document.getElementById("energy"),
+  angmom: document.getElementById("angmom"),
+  hits: document.getElementById("hits"),
+  firstHit: document.getElementById("firstHit"),
+  afterFirst: document.getElementById("afterFirst"),
+};
+
+const playBtn = document.getElementById("play");
+const resetBtn = document.getElementById("reset");
+const stepBtn = document.getElementById("step");
+const cameraBtn = document.getElementById("camera");
+const trailToggle = document.getElementById("trail");
+const limitGuideToggle = document.getElementById("limitGuide");
+const autorotateToggle = document.getElementById("autorotate");
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
+const orbit = new OrbitControls(camera, canvas);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.06;
+orbit.target.set(0, 0, 0);
+
+scene.add(new THREE.HemisphereLight(0xdbeafe, 0x111827, 1.7));
+const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
+keyLight.position.set(4, 7, 5);
+scene.add(keyLight);
+
+const root = new THREE.Group();
+scene.add(root);
+
+const grid = new THREE.GridHelper(12, 24, 0x475569, 0x1f2937);
+grid.position.y = -3.2;
+root.add(grid);
+
+const axes = new THREE.AxesHelper(3.8);
+root.add(axes);
+
+const limitSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 48, 24),
+  new THREE.MeshBasicMaterial({
+    color: 0x2563eb,
+    transparent: true,
+    opacity: 0.10,
+    wireframe: true,
+  })
+);
+root.add(limitSphere);
+
+const ballGeometry = new THREE.SphereGeometry(0.13, 32, 18);
+const ballA = new THREE.Mesh(
+  ballGeometry,
+  new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.48, metalness: 0.04 })
+);
+const ballB = new THREE.Mesh(
+  ballGeometry,
+  new THREE.MeshStandardMaterial({ color: 0xf87171, roughness: 0.48, metalness: 0.04 })
+);
+root.add(ballA, ballB);
+
+const ropeMaterial = new THREE.LineBasicMaterial({ color: 0xe5e7eb, linewidth: 2 });
+const slackMaterial = new THREE.LineDashedMaterial({
+  color: 0xcbd5e1,
+  dashSize: 0.16,
+  gapSize: 0.09,
+  transparent: true,
+  opacity: 0.9,
+});
+const ropeLine = new THREE.Line(new THREE.BufferGeometry(), ropeMaterial);
+root.add(ropeLine);
+
+const arrowA = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.4, 0x2563eb);
+const arrowB = new THREE.ArrowHelper(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(), 0.4, 0xb42318);
+root.add(arrowA, arrowB);
+
+const trailMatA = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.35 });
+const trailMatB = new THREE.LineBasicMaterial({ color: 0xb42318, transparent: true, opacity: 0.30 });
+const trailLineA = new THREE.Line(new THREE.BufferGeometry(), trailMatA);
+const trailLineB = new THREE.Line(new THREE.BufferGeometry(), trailMatB);
+root.add(trailLineA, trailLineB);
+
+let params;
+let state;
+let running = true;
+let lastStamp = null;
+let trailA = [];
+let trailB = [];
+let ropeBendNormal = new THREE.Vector3(0, 1, 0);
+
+const tmp = {
+  pA: new THREE.Vector3(),
+  pB: new THREE.Vector3(),
+  dir: new THREE.Vector3(),
+  vec: new THREE.Vector3(),
+  normal: new THREE.Vector3(),
+  bend: new THREE.Vector3(),
+  vt: new THREE.Vector3(),
+  cross: new THREE.Vector3(),
+};
+
+function readParams() {
+  return {
+    e: Number(controls.e.value),
+    v0: Number(controls.v0.value),
+    L: Number(controls.L.value),
+    offsetY: Number(controls.offsetY.value),
+    offsetZ: Number(controls.offsetZ.value),
+    speed: Number(controls.speed.value),
+    m: 1,
+  };
+}
+
+function initialRelativeVector(p) {
+  const r = new THREE.Vector3(0, p.offsetY, p.offsetZ);
+  const len = r.length();
+  if (len >= p.L) r.multiplyScalar((0.82 * p.L) / len);
+  return r;
+}
+
+function resetCamera() {
+  const L = Number(controls.L.value);
+  camera.position.set(1.8 * L, 1.25 * L, 1.75 * L);
+  camera.near = 0.05;
+  camera.far = Math.max(80, L * 40);
+  camera.updateProjectionMatrix();
+  orbit.target.set(0, 0, 0);
+  orbit.update();
+}
+
+function reset() {
+  params = readParams();
+  const r0 = initialRelativeVector(params);
+  state = {
+    t: 0,
+    r: r0,
+    v: new THREE.Vector3(2 * params.v0, 0, 0),
+    mode: "slack",
+    omega: new THREE.Vector3(),
+    hits: 0,
+    firstCollisionSeen: false,
+    firstAfterText: "-",
+    E0: params.m * params.v0 * params.v0,
+    J0: angularMomentumFrom(r0, new THREE.Vector3(2 * params.v0, 0, 0)).length(),
+  };
+  trailA = [];
+  trailB = [];
+  ropeBendNormal.set(0, 1, 0);
+  resize();
+  updateLabels();
+  updateScene();
+}
+
+function dot(a, b) { return a.dot(b); }
+function kineticEnergy() { return params.m * state.v.lengthSq() / 4; }
+
+function angularMomentumFrom(r, v) {
+  return tmp.cross.copy(r).cross(v).multiplyScalar(params.m / 2).clone();
+}
+
+function angularMomentum() {
+  return angularMomentumFrom(state.r, state.v);
+}
+
+function captureTautMotion() {
+  const d = state.r.length();
+  if (d <= 1e-12) return;
+  const n = tmp.normal.copy(state.r).multiplyScalar(1 / d);
+  tmp.vt.copy(state.v).addScaledVector(n, -state.v.dot(n));
+  state.mode = "taut";
+  state.r.copy(n).multiplyScalar(params.L);
+  state.v.copy(tmp.vt);
+  state.omega.copy(state.r).cross(state.v).multiplyScalar(1 / (params.L * params.L));
+  state.v.copy(state.omega).cross(state.r);
+}
+
+function solveImpactTime(r, v, L, dt) {
+  const a = dot(v, v);
+  const b = 2 * dot(r, v);
+  const c = dot(r, r) - L * L;
+  const disc = b * b - 4 * a * c;
+  if (a <= 1e-14 || disc < 0) return null;
+
+  const s = Math.sqrt(disc);
+  const t1 = (-b - s) / (2 * a);
+  const t2 = (-b + s) / (2 * a);
+  const eps = 1e-10;
+  const candidates = [t1, t2].filter(t => t >= -eps && t <= dt + eps);
+  if (!candidates.length) return null;
+  candidates.sort((x, y) => x - y);
+  return Math.max(0, candidates[0]);
+}
+
+function predictedFirstHit() {
+  const p = readParams();
+  const r0 = initialRelativeVector(p);
+  const v0 = new THREE.Vector3(2 * p.v0, 0, 0);
+  const tau = solveImpactTime(r0, v0, p.L, 1e6);
+  return tau === null ? null : tau;
+}
+
+function applyImpact() {
+  const d = state.r.length();
+  if (d <= 1e-12) return;
+
+  const n = tmp.normal.copy(state.r).multiplyScalar(1 / d);
+  const vr = state.v.dot(n);
+  if (vr <= 0) return;
+
+  const beforeE = kineticEnergy();
+  tmp.vt.copy(state.v).addScaledVector(n, -vr);
+  state.v.copy(tmp.vt).addScaledVector(n, -params.e * vr);
+  state.hits++;
+
+  if (!state.firstCollisionSeen) {
+    state.firstCollisionSeen = true;
+    const afterE = kineticEnergy();
+    const lossPct = 100 * (1 - afterE / beforeE);
+    state.firstAfterText = "perda = " + lossPct.toFixed(1) + "%";
+  }
+
+  const radialAfter = Math.abs(state.v.dot(n));
+  const tangentialAfter = tmp.vt.length();
+  const nearCircular = params.e > 0.000001 && params.e < 1 && radialAfter <= Math.max(1e-7, tangentialAfter * 1e-4);
+  if (params.e < 0.000001 || nearCircular) captureTautMotion();
+}
+
+function advance(dt) {
+  params = readParams();
+  let remaining = dt;
+  let guard = 0;
+
+  while (remaining > 1e-8 && guard++ < 12) {
+    if (state.mode === "taut") {
+      rotateTaut(remaining);
+      state.t += remaining;
+      remaining = 0;
+    } else {
+      const rNext = tmp.vec.copy(state.r).addScaledVector(state.v, remaining);
+      const dNext = rNext.length();
+
+      if (dNext <= params.L + 1e-9) {
+        state.r.copy(rNext);
+        state.t += remaining;
+        remaining = 0;
+      } else {
+        const tau = solveImpactTime(state.r, state.v, params.L, remaining);
+        if (tau === null) {
+          state.r.copy(rNext).multiplyScalar(params.L / dNext);
+          state.t += remaining;
+          applyImpact();
+          remaining = 0;
+        } else {
+          state.r.addScaledVector(state.v, tau);
+          state.t += tau;
+          applyImpact();
+          remaining -= tau;
+          if (state.mode === "slack") state.r.addScaledVector(state.v, 1e-7);
+        }
+      }
+    }
+  }
+
+  if (trailToggle.checked) {
+    trailA.push(state.r.clone().multiplyScalar(0.5));
+    trailB.push(state.r.clone().multiplyScalar(-0.5));
+    if (trailA.length > 950) trailA.shift();
+    if (trailB.length > 950) trailB.shift();
+  }
+}
+
+function rotateTaut(dt) {
+  const angle = state.omega.length() * dt;
+  if (angle < 1e-12) return;
+  state.r.applyAxisAngle(tmp.dir.copy(state.omega).normalize(), angle);
+  state.v.copy(state.omega).cross(state.r);
+}
+
+function polylineLength(points) {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += points[i - 1].distanceTo(points[i]);
+  return total;
+}
+
+function stableBendNormal(chord, len) {
+  if (len < 1e-8) return ropeBendNormal.clone().normalize();
+
+  const chordDir = tmp.bend.copy(chord).multiplyScalar(1 / len);
+  const projected = ropeBendNormal.clone().addScaledVector(chordDir, -ropeBendNormal.dot(chordDir));
+
+  if (projected.lengthSq() < 1e-8) {
+    projected.set(0, 1, 0).addScaledVector(chordDir, -new THREE.Vector3(0, 1, 0).dot(chordDir));
+  }
+  if (projected.lengthSq() < 1e-8) {
+    projected.set(0, 0, 1).addScaledVector(chordDir, -new THREE.Vector3(0, 0, 1).dot(chordDir));
+  }
+
+  projected.normalize();
+  ropeBendNormal.copy(projected);
+  return projected;
+}
+
+function makeSlackCurve(a, b, ropeLength) {
+  const mid = tmp.vec.copy(a).add(b).multiplyScalar(0.5);
+  const chord = tmp.dir.copy(b).sub(a);
+  const len = chord.length();
+  const perpendicular = stableBendNormal(chord, len);
+
+  if (Math.abs(ropeLength - len) < 1e-5) return [a, b];
+
+  const target = Math.max(ropeLength, len);
+  let low = 0;
+  let high = Math.max(target, 0.25);
+  let points = [a, b];
+
+  for (let i = 0; i < 26; i++) {
+    const sag = (low + high) / 2;
+    const control = mid.clone().addScaledVector(perpendicular, sag);
+    const curve = new THREE.QuadraticBezierCurve3(a, control, b);
+    points = curve.getPoints(36);
+    if (polylineLength(points) < target) low = sag; else high = sag;
+  }
+
+  const control = mid.clone().addScaledVector(perpendicular, high);
+  return new THREE.QuadraticBezierCurve3(a, control, b).getPoints(36);
+}
+
+function setLinePoints(line, points) {
+  line.geometry.dispose();
+  line.geometry = new THREE.BufferGeometry().setFromPoints(points);
+  if (line.material.isLineDashedMaterial) line.computeLineDistances();
+}
+
+function updateTrail() {
+  if (!trailToggle.checked || trailA.length < 2) {
+    setLinePoints(trailLineA, []);
+    setLinePoints(trailLineB, []);
+    return;
+  }
+  setLinePoints(trailLineA, trailA);
+  setLinePoints(trailLineB, trailB);
+}
+
+function updateArrow(arrow, origin, velocity) {
+  const len = velocity.length();
+  arrow.position.copy(origin);
+  if (len < 1e-7) {
+    arrow.setLength(0.001, 0.001, 0.001);
+    return;
+  }
+  arrow.setDirection(tmp.dir.copy(velocity).normalize());
+  arrow.setLength(Math.min(0.9, Math.max(0.18, len * 0.22)), 0.12, 0.06);
+}
+
+function updateScene() {
+  tmp.pA.copy(state.r).multiplyScalar(0.5);
+  tmp.pB.copy(state.r).multiplyScalar(-0.5);
+  ballA.position.copy(tmp.pA);
+  ballB.position.copy(tmp.pB);
+
+  const dist = state.r.length();
+  const taut = state.mode === "taut";
+  ropeLine.material = taut ? ropeMaterial : slackMaterial;
+  const ropePoints = taut
+    ? [tmp.pA.clone(), tmp.pB.clone()]
+    : makeSlackCurve(tmp.pA.clone(), tmp.pB.clone(), params.L);
+  setLinePoints(ropeLine, ropePoints);
+
+  updateArrow(arrowA, tmp.pA, tmp.vec.copy(state.v).multiplyScalar(0.5));
+  updateArrow(arrowB, tmp.pB, tmp.vec.copy(state.v).multiplyScalar(-0.5));
+  limitSphere.scale.setScalar(params.L / 2);
+  limitSphere.visible = limitGuideToggle.checked;
+  updateTrail();
+  updateMetrics();
+}
+
+function updateLabels() {
+  const p = readParams();
+  out.eVal.textContent = p.e.toFixed(2);
+  out.v0Val.textContent = p.v0.toFixed(2);
+  out.LVal.textContent = p.L.toFixed(1);
+  out.offsetYVal.textContent = p.offsetY.toFixed(2);
+  out.offsetZVal.textContent = p.offsetZ.toFixed(2);
+  out.speedVal.textContent = p.speed.toFixed(1) + "x";
+
+  const first = predictedFirstHit();
+  out.firstHit.textContent = first === null ? "-" : "t = " + first.toFixed(3);
+}
+
+function updateMetrics() {
+  const dist = state.r.length();
+  const E = kineticEnergy();
+  const J = angularMomentum().length();
+  const stretchRatio = dist / params.L;
+  const visualState = state.mode === "taut"
+    ? { label: "tensa", className: "taut" }
+    : stretchRatio >= 0.985
+      ? { label: "esticada", className: "taut" }
+      : { label: "frouxa", className: "slack" };
+  out.state.innerHTML = `<span class="pill ${visualState.className}">${visualState.label}</span>`;
+  out.time.textContent = state.t.toFixed(3);
+  out.dist.textContent = dist.toFixed(3) + " / l = " + (dist / params.L).toFixed(3);
+  out.energy.textContent = (E / state.E0).toFixed(4);
+  out.angmom.textContent = state.J0 <= 1e-12 ? "-" : (J / state.J0).toFixed(4);
+  out.hits.textContent = String(state.hits);
+  out.afterFirst.textContent = state.firstAfterText;
+}
+
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+  if (canvas.width !== width || canvas.height !== height) {
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
+}
+
+function frame(stamp) {
+  if (lastStamp === null) lastStamp = stamp;
+  const rawDt = Math.min(0.035, (stamp - lastStamp) / 1000);
+  lastStamp = stamp;
+
+  if (running) {
+    const dt = rawDt * readParams().speed;
+    const n = Math.max(1, Math.ceil(dt / 0.006));
+    for (let i = 0; i < n; i++) advance(dt / n);
+    updateScene();
+  }
+
+  orbit.autoRotate = autorotateToggle.checked;
+  orbit.autoRotateSpeed = 0.6;
+  orbit.update();
+  resize();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+playBtn.addEventListener("click", () => {
+  running = !running;
+  playBtn.textContent = running ? "Pausar" : "Rodar";
+  playBtn.classList.toggle("primary", running);
+  lastStamp = null;
+});
+
+resetBtn.addEventListener("click", reset);
+
+stepBtn.addEventListener("click", () => {
+  running = false;
+  playBtn.textContent = "Rodar";
+  playBtn.classList.remove("primary");
+  advance(0.02 * readParams().speed);
+  updateScene();
+});
+
+cameraBtn.addEventListener("click", resetCamera);
+
+trailToggle.addEventListener("change", () => {
+  if (!trailToggle.checked) {
+    trailA = [];
+    trailB = [];
+  }
+  updateScene();
+});
+
+limitGuideToggle.addEventListener("change", updateScene);
+
+for (const key of Object.keys(controls)) {
+  controls[key].addEventListener("input", () => {
+    updateLabels();
+    if (key === "e" || key === "speed") {
+      params.e = Number(controls.e.value);
+      params.speed = Number(controls.speed.value);
+    } else {
+      reset();
+    }
+  });
+}
+
+window.addEventListener("resize", resize);
+resetCamera();
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
