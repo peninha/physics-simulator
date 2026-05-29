@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador de Aurora e Espelho Magnético</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #020611;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: #eaf6ff;
+    }
+    #app {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    #overlay {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      width: min(400px, calc(100vw - 32px));
+      padding: 14px 16px;
+      background: rgba(8, 14, 28, 0.72);
+      border: 1px solid rgba(180, 220, 255, 0.18);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.28);
+      z-index: 10;
+    }
+    #overlay h1 {
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+    #overlay p {
+      margin: 8px 0;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #d8ecff;
+    }
+    .controls {
+      margin-top: 10px;
+      display: grid;
+      gap: 10px;
+    }
+    .control-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+    .control-row label {
+      font-size: 13px;
+      color: #d8ecff;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #77d9ff;
+    }
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      background: rgba(120, 210, 255, 0.14);
+      color: #eff9ff;
+      border: 1px solid rgba(160, 225, 255, 0.22);
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover {
+      background: rgba(120, 210, 255, 0.22);
+    }
+    .mini {
+      font-size: 12px;
+      color: #b8d9f7;
+    }
+    #status {
+      margin-top: 8px;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(19, 35, 64, 0.65);
+      border: 1px solid rgba(173, 221, 255, 0.12);
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+    #footer {
+      position: absolute;
+      right: 16px;
+      bottom: 12px;
+      padding: 8px 10px;
+      font-size: 12px;
+      background: rgba(8, 14, 28, 0.52);
+      border: 1px solid rgba(180, 220, 255, 0.12);
+      border-radius: 12px;
+      color: #d6eeff;
+      z-index: 10;
+    }
+    a { color: #9ee9ff; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="overlay">
+      <h1>Simulador de Aurora e Espelho Magnético</h1>
+      <p>
+        O elétron espirala em torno da linha de campo e faz um <b>bounce</b> entre os hemisférios.
+        Quando o campo magnético aumenta perto dos polos, a componente paralela diminui. Se ela zera antes da atmosfera,
+        ocorre <b>reflexão</b> (espelho magnético). Se o ângulo de pitch for pequeno demais, ele cai no <b>cone de perda</b>
+        e precipita, acendendo a aurora.
+      </p>
+
+      <div class="controls">
+        <div>
+          <div class="control-row">
+            <label for="pitch">Ângulo de pitch no equador</label>
+            <span id="pitchValue">45°</span>
+          </div>
+          <input id="pitch" type="range" min="5" max="85" step="1" value="45" />
+        </div>
+
+        <div>
+          <div class="control-row">
+            <label for="speed">Velocidade da animação</label>
+            <span id="speedValue">1.0×</span>
+          </div>
+          <input id="speed" type="range" min="0.2" max="2.5" step="0.1" value="1.0" />
+        </div>
+
+        <div class="button-row">
+          <button id="pauseBtn">Pausar</button>
+          <button id="cameraBtn">Enquadrar partícula</button>
+          <button id="resetBtn">Reiniciar</button>
+        </div>
+      </div>
+
+      <div id="status"></div>
+      <p class="mini">
+        Dica: arraste para orbitar, scroll para zoom. A linha turquesa é a linha de campo “ativa”.
+      </p>
+    </div>
+
+    <div id="footer">Feito em Three.js · visual conceitual, não em escala física</div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+    const container = document.getElementById('app');
+    const pitchSlider = document.getElementById('pitch');
+    const speedSlider = document.getElementById('speed');
+    const pitchValue = document.getElementById('pitchValue');
+    const speedValue = document.getElementById('speedValue');
+    const statusBox = document.getElementById('status');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const cameraBtn = document.getElementById('cameraBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x020611, 0.038);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 200);
+    camera.position.set(5.4, 2.8, 5.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 1.8;
+    controls.maxDistance = 20;
+    controls.target.set(0, 0, 0);
+
+    const ambient = new THREE.AmbientLight(0x8fb7ff, 0.9);
+    scene.add(ambient);
+
+    const sunLight = new THREE.DirectionalLight(0xb7d6ff, 1.2);
+    sunLight.position.set(4, 2, 5);
+    scene.add(sunLight);
+
+    const rimLight = new THREE.PointLight(0x55b7ff, 10, 20, 2);
+    rimLight.position.set(-4.5, 0, -4.5);
+    scene.add(rimLight);
+
+    // Stars
+    const starCount = 1800;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      const r = 20 + Math.random() * 60;
+      const theta = Math.random() * Math.PI * 2;
+      const u = Math.random() * 2 - 1;
+      const phi = Math.acos(u);
+      starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      starPos[i * 3 + 1] = r * Math.cos(phi);
+      starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xdff5ff, size: 0.05, transparent: true, opacity: 0.9 });
+    const stars = new THREE.Points(starGeo, starMat);
+    scene.add(stars);
+
+    // Earth
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+
+    const earthRadius = 1.0;
+    const earthGeom = new THREE.SphereGeometry(earthRadius, 96, 96);
+    const earthMat = new THREE.MeshPhongMaterial({
+      color: 0x144d89,
+      shininess: 18,
+      specular: 0x4477aa,
+      emissive: 0x071629,
+      emissiveIntensity: 0.7,
+    });
+    const earth = new THREE.Mesh(earthGeom, earthMat);
+    earthGroup.add(earth);
+
+    // Clouds / atmosphere shell
+    const atmosGeom = new THREE.SphereGeometry(earthRadius * 1.045, 96, 96);
+    const atmosMat = new THREE.MeshBasicMaterial({
+      color: 0x82d7ff,
+      transparent: true,
+      opacity: 0.13,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const atmosphere = new THREE.Mesh(atmosGeom, atmosMat);
+    earthGroup.add(atmosphere);
+
+    // Magnetic axis marker
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x8aa6ff, transparent: true, opacity: 0.3 });
+    const axisGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0, -2.8, 0),
+      new THREE.Vector3(0, 2.8, 0),
+    ]);
+    const magAxis = new THREE.Line(axisGeo, axisMat);
+    scene.add(magAxis);
+
+    // Aurora glow near poles
+    const auroraNorth = createAuroraCap(+1);
+    const auroraSouth = createAuroraCap(-1);
+    scene.add(auroraNorth, auroraSouth);
+
+    function createAuroraCap(sign) {
+      const group = new THREE.Group();
+      const ringCount = 14;
+      for (let i = 0; i < ringCount; i++) {
+        const lat = sign * (0.8 + Math.random() * 0.18);
+        const radius = 0.25 + Math.random() * 0.32;
+        const tube = 0.014 + Math.random() * 0.02;
+        const geom = new THREE.TorusGeometry(radius, tube, 12, 128);
+        const mat = new THREE.MeshBasicMaterial({
+          color: i % 3 === 0 ? 0x5fffd1 : (i % 3 === 1 ? 0x75ff8c : 0x6fd4ff),
+          transparent: true,
+          opacity: 0.11,
+          blending: THREE.AdditiveBlending,
+        });
+        const torus = new THREE.Mesh(geom, mat);
+        torus.rotation.x = Math.PI / 2;
+        torus.position.y = lat;
+        torus.scale.set(1.0, 0.18 + Math.random() * 0.15, 1.0);
+        group.add(torus);
+      }
+      return group;
+    }
+
+    // Dipole field lines
+    const fieldLineGroup = new THREE.Group();
+    scene.add(fieldLineGroup);
+
+    const inactiveMat = new THREE.LineBasicMaterial({ color: 0x507dcf, transparent: true, opacity: 0.32 });
+    const activeMat = new THREE.LineBasicMaterial({ color: 0x7ce8ff, transparent: true, opacity: 0.95 });
+
+    const LActive = 3.4;
+    const lineLongitudes = [0, Math.PI/3, 2*Math.PI/3, Math.PI, 4*Math.PI/3, 5*Math.PI/3];
+    const lineShells = [1.8, 2.3, 2.8, 3.4, 4.2];
+
+    for (const L of lineShells) {
+      for (const phi of lineLongitudes) {
+        const pts = buildFieldLinePoints(L, phi, 220);
+        const geom = new THREE.BufferGeometry().setFromPoints(pts);
+        const isActive = Math.abs(L - LActive) < 1e-8 && Math.abs(phi) < 1e-8;
+        const line = new THREE.Line(geom, isActive ? activeMat : inactiveMat);
+        fieldLineGroup.add(line);
+      }
+    }
+
+    const activePoints = buildFieldLinePoints(LActive, 0, 500);
+    const activeCurve = new THREE.CatmullRomCurve3(activePoints);
+
+    function buildFieldLinePoints(L, phi, steps = 200) {
+      const pts = [];
+      const thetaMin = 0.22;
+      const thetaMax = Math.PI - thetaMin;
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        const theta = thetaMin + t * (thetaMax - thetaMin);
+        const s = Math.sin(theta);
+        const c = Math.cos(theta);
+        const r = L * s * s;
+        const x0 = r * s;
+        const y0 = 0;
+        const z0 = r * c;
+        const x = x0 * Math.cos(phi) - y0 * Math.sin(phi);
+        const y = x0 * Math.sin(phi) + y0 * Math.cos(phi);
+        const z = z0;
+        pts.push(new THREE.Vector3(x, z, y));
+      }
+      return pts;
+    }
+
+    // Atmosphere shell where precipitation becomes visible.
+    const atmosphereHitRadius = earthRadius * 1.1;
+
+    // Particle visuals
+    const particleGroup = new THREE.Group();
+    scene.add(particleGroup);
+
+    const particleGeom = new THREE.SphereGeometry(0.052, 20, 20);
+    const particleMat = new THREE.MeshBasicMaterial({ color: 0x8ffbff });
+    const particle = new THREE.Mesh(particleGeom, particleMat);
+    particleGroup.add(particle);
+
+    const particleGlowGeom = new THREE.SphereGeometry(0.09, 20, 20);
+    const particleGlowMat = new THREE.MeshBasicMaterial({
+      color: 0x75dfff,
+      transparent: true,
+      opacity: 0.24,
+      blending: THREE.AdditiveBlending,
+    });
+    const particleGlow = new THREE.Mesh(particleGlowGeom, particleGlowMat);
+    particleGroup.add(particleGlow);
+
+    const particleLight = new THREE.PointLight(0x86f1ff, 8, 3, 2);
+    particleGroup.add(particleLight);
+
+    // Trail
+    const trailLength = 160;
+    const trailPositions = new Float32Array(trailLength * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    const trailMat = new THREE.LineBasicMaterial({ color: 0xb3ffff, transparent: true, opacity: 0.4 });
+    const trailLine = new THREE.Line(trailGeo, trailMat);
+    scene.add(trailLine);
+    const trail = [];
+
+    // Precipitation glow burst
+    const burstGeom = new THREE.SphereGeometry(0.08, 20, 20);
+    const burstMat = new THREE.MeshBasicMaterial({
+      color: 0x7bff9a,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+    });
+    const burst = new THREE.Mesh(burstGeom, burstMat);
+    burst.visible = false;
+    scene.add(burst);
+
+    // Parameters and state
+    let equatorialPitchDeg = Number(pitchSlider.value);
+    let simSpeed = Number(speedSlider.value);
+    let paused = false;
+    let followParticle = false;
+    let time = 0;
+    let burstTimer = 0;
+    let lastSign = 1;
+
+    pitchSlider.addEventListener('input', () => {
+      equatorialPitchDeg = Number(pitchSlider.value);
+      pitchValue.textContent = `${equatorialPitchDeg}°`;
+      recomputeMirrorInfo();
+    });
+
+    speedSlider.addEventListener('input', () => {
+      simSpeed = Number(speedSlider.value);
+      speedValue.textContent = `${simSpeed.toFixed(1)}×`;
+    });
+
+    pauseBtn.addEventListener('click', () => {
+      paused = !paused;
+      pauseBtn.textContent = paused ? 'Retomar' : 'Pausar';
+    });
+
+    cameraBtn.addEventListener('click', () => {
+      followParticle = !followParticle;
+      cameraBtn.textContent = followParticle ? 'Soltar câmera' : 'Enquadrar partícula';
+    });
+
+    resetBtn.addEventListener('click', () => {
+      time = 0;
+      trail.length = 0;
+      burst.visible = false;
+      burstTimer = 0;
+    });
+
+    function Bnorm(theta) {
+      const s = Math.sin(theta);
+      const c = Math.cos(theta);
+      return Math.sqrt(1 + 3 * c * c) / Math.pow(Math.max(s, 1e-5), 6);
+    }
+
+    function mirrorColatitude(alphaEqRad) {
+      const target = 1 / Math.pow(Math.sin(alphaEqRad), 2);
+      const eq = Bnorm(Math.PI / 2);
+      const targetNorm = target * eq;
+      let lo = 0.02;
+      let hi = Math.PI / 2;
+      for (let i = 0; i < 70; i++) {
+        const mid = 0.5 * (lo + hi);
+        if (Bnorm(mid) > targetNorm) lo = mid;
+        else hi = mid;
+      }
+      return 0.5 * (lo + hi);
+    }
+
+    function computeLossConeEq() {
+      // Approximate equatorial loss cone for this L-shell based on where field line meets the atmosphere shell.
+      const thetaAtAtm = Math.asin(Math.sqrt(Math.min(1, atmosphereHitRadius / LActive)));
+      const ratio = Bnorm(thetaAtAtm) / Bnorm(Math.PI / 2);
+      const alphaLC = Math.asin(Math.sqrt(1 / ratio));
+      return { thetaAtAtm, alphaLC };
+    }
+
+    let mirrorInfo = {};
+
+    function recomputeMirrorInfo() {
+      const alphaEqRad = THREE.MathUtils.degToRad(equatorialPitchDeg);
+      const { thetaAtAtm, alphaLC } = computeLossConeEq();
+      const inLossCone = alphaEqRad < alphaLC;
+      let thetaMirror = null;
+      let lambdaMirrorDeg = null;
+
+      if (!inLossCone) {
+        thetaMirror = mirrorColatitude(alphaEqRad);
+        lambdaMirrorDeg = THREE.MathUtils.radToDeg(Math.PI / 2 - thetaMirror);
+      }
+
+      mirrorInfo = { alphaEqRad, thetaAtAtm, alphaLC, inLossCone, thetaMirror, lambdaMirrorDeg };
+      updateStatus();
+    }
+
+    function updateStatus(extra = '') {
+      const lcDeg = THREE.MathUtils.radToDeg(mirrorInfo.alphaLC).toFixed(1);
+      const state = mirrorInfo.inLossCone
+        ? 'REGIME: cone de perda → o elétron precipita na atmosfera e acende a aurora.'
+        : `REGIME: espelho magnético → reflexão em latitude magnética ≈ ±${mirrorInfo.lambdaMirrorDeg.toFixed(1)}°.`;
+
+      const lines = [
+        `Pitch no equador: ${equatorialPitchDeg.toFixed(0)}°`,
+        `Ângulo aproximado do cone de perda: ${lcDeg}°`,
+        state,
+      ];
+      if (extra) lines.push(extra);
+      statusBox.textContent = lines.join('\n');
+    }
+
+    recomputeMirrorInfo();
+    pitchValue.textContent = `${equatorialPitchDeg}°`;
+    speedValue.textContent = `${simSpeed.toFixed(1)}×`;
+
+    function pointOnActiveLine(theta) {
+      const s = Math.sin(theta);
+      const c = Math.cos(theta);
+      const r = LActive * s * s;
+      return new THREE.Vector3(r * s, r * c, 0);
+    }
+
+    function tangentOnActiveLine(theta) {
+      const eps = 1e-3;
+      const p1 = pointOnActiveLine(Math.max(0.02, theta - eps));
+      const p2 = pointOnActiveLine(Math.min(Math.PI - 0.02, theta + eps));
+      return p2.sub(p1).normalize();
+    }
+
+    function frameAt(theta) {
+      const center = pointOnActiveLine(theta);
+      const tangent = tangentOnActiveLine(theta);
+      let normal = new THREE.Vector3(0, 0, 1).cross(tangent);
+      if (normal.lengthSq() < 1e-6) normal = new THREE.Vector3(1, 0, 0).cross(tangent);
+      normal.normalize();
+      const binormal = tangent.clone().cross(normal).normalize();
+      return { center, tangent, normal, binormal };
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.03);
+      if (!paused) time += dt * simSpeed;
+
+      earth.rotation.y += dt * 0.05;
+      atmosphere.rotation.y += dt * 0.06;
+      auroraNorth.rotation.y += dt * 0.06;
+      auroraSouth.rotation.y -= dt * 0.05;
+      stars.rotation.y += dt * 0.004;
+
+      updateParticle(dt);
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function updateParticle(dt) {
+      const alphaEq = mirrorInfo.alphaEqRad;
+      const bounceFreq = 0.55;
+      const gyroFreq = 24.0;
+      let theta;
+      let precipitating = false;
+      let localPitch = alphaEq;
+      let BByBeq = 1;
+
+      if (mirrorInfo.inLossCone) {
+        // Fall from north to south atmosphere repeatedly.
+        const thetaNorthAtm = mirrorInfo.thetaAtAtm;
+        const thetaSouthAtm = Math.PI - mirrorInfo.thetaAtAtm;
+        const phase = (time * 0.22) % 2;
+        if (phase < 1) {
+          theta = THREE.MathUtils.lerp(thetaNorthAtm, thetaSouthAtm, phase);
+          lastSign = theta < Math.PI / 2 ? +1 : -1;
+        } else {
+          theta = THREE.MathUtils.lerp(thetaSouthAtm, thetaNorthAtm, phase - 1);
+          lastSign = theta < Math.PI / 2 ? +1 : -1;
+        }
+        const currentB = Bnorm(theta);
+        BByBeq = currentB / Bnorm(Math.PI / 2);
+        localPitch = Math.asin(Math.min(1, Math.sin(alphaEq) * Math.sqrt(BByBeq)));
+
+        const closeToPole = theta <= thetaNorthAtm + 0.015 || theta >= thetaSouthAtm - 0.015;
+        if (closeToPole) precipitating = true;
+      } else {
+        const lambdaM = Math.PI / 2 - mirrorInfo.thetaMirror;
+        const lambda = lambdaM * Math.sin(time * bounceFreq * 2 * Math.PI);
+        theta = Math.PI / 2 - lambda;
+        const currentB = Bnorm(theta);
+        BByBeq = currentB / Bnorm(Math.PI / 2);
+        localPitch = Math.asin(Math.min(1, Math.sin(alphaEq) * Math.sqrt(BByBeq)));
+      }
+
+      const { center, tangent, normal, binormal } = frameAt(theta);
+
+      // Gyro radius shrinks near poles (roughly ~1/sqrt(B)). Scaled for visibility.
+      const gyroradius = 0.12 / Math.sqrt(BByBeq) * (0.55 + 0.45 * Math.sin(localPitch));
+      const gyroPhase = time * gyroFreq * 2 * Math.PI;
+      const offset = normal.clone().multiplyScalar(Math.cos(gyroPhase) * gyroradius)
+        .add(binormal.clone().multiplyScalar(Math.sin(gyroPhase) * gyroradius));
+
+      const pos = center.clone().add(offset);
+      particleGroup.position.copy(pos);
+
+      trail.unshift(pos.clone());
+      while (trail.length > trailLength) trail.pop();
+      for (let i = 0; i < trailLength; i++) {
+        const p = trail[i] || pos;
+        trailPositions[i * 3] = p.x;
+        trailPositions[i * 3 + 1] = p.y;
+        trailPositions[i * 3 + 2] = p.z;
+      }
+      trailGeo.attributes.position.needsUpdate = true;
+
+      if (precipitating && burstTimer <= 0) {
+        burst.visible = true;
+        burst.position.copy(center.clone().multiplyScalar(atmosphereHitRadius / center.length()));
+        burst.scale.setScalar(1);
+        burstTimer = 0.5;
+      }
+
+      if (burstTimer > 0) {
+        burstTimer -= dt;
+        const a = Math.max(0, burstTimer / 0.5);
+        burst.material.opacity = 0.34 * a;
+        burst.scale.setScalar(1 + 4.2 * (1 - a));
+      } else {
+        burst.visible = false;
+      }
+
+      if (followParticle) {
+        const desired = pos.clone().add(new THREE.Vector3(1.8, 0.9, 1.8));
+        camera.position.lerp(desired, 0.03);
+        controls.target.lerp(center, 0.06);
+      }
+
+      const latDeg = (90 - THREE.MathUtils.radToDeg(theta)).toFixed(1);
+      const localPitchDeg = THREE.MathUtils.radToDeg(localPitch).toFixed(1);
+      const extra = mirrorInfo.inLossCone
+        ? `Latitude instantânea: ${latDeg}°\nPitch local: ${localPitchDeg}°\nAgora: precipitação auroral.`
+        : `Latitude instantânea: ${latDeg}°\nPitch local: ${localPitchDeg}°\nAgora: bounce aprisionado.`;
+      updateStatus(extra);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    animate();
+  </script>
+</body>
+</html>

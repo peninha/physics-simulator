@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulador: duas esferas e corda frouxa</title>
+<style>
+  :root {
+    --bg: #f7f7f4;
+    --panel: #ffffff;
+    --ink: #1f2933;
+    --muted: #667085;
+    --line: #d0d5dd;
+    --accent: #2563eb;
+    --danger: #b42318;
+    --ok: #067647;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  header {
+    padding: 18px 22px 10px;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    letter-spacing: -0.02em;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+    max-width: 980px;
+  }
+
+  main {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 12px 22px 24px;
+    display: grid;
+    grid-template-columns: minmax(560px, 1fr) 360px;
+    gap: 16px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+  }
+
+  .canvas-wrap {
+    padding: 12px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(37,99,235,0.08) 0 1px, transparent 1px 100%),
+      linear-gradient(#fff, #fbfbfd);
+    border: 1px solid #eaecf0;
+  }
+
+  .controls {
+    padding: 14px 16px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    margin: 13px 0;
+  }
+
+  label {
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .value {
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    color: var(--muted);
+    min-width: 76px;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 14px 0 8px;
+  }
+
+  button {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 10px;
+    padding: 9px 10px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  button.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  button:hover { filter: brightness(0.98); }
+
+  .metrics {
+    margin-top: 14px;
+    border-top: 1px solid #eaecf0;
+    padding-top: 12px;
+    font-size: 13px;
+  }
+
+  .metric {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 5px 0;
+    border-bottom: 1px dashed #eef0f3;
+  }
+
+  .metric span:first-child { color: var(--muted); }
+  .metric span:last-child {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #f2f4f7;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .pill.taut {
+    background: #ecfdf3;
+    color: var(--ok);
+  }
+
+  .pill.slack {
+    background: #fff7ed;
+    color: #b54708;
+  }
+
+  .note {
+    margin-top: 12px;
+    padding: 11px 12px;
+    background: #f9fafb;
+    border: 1px solid #eef0f3;
+    border-radius: 10px;
+    color: #475467;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  code {
+    background: #f2f4f7;
+    padding: 1px 4px;
+    border-radius: 5px;
+  }
+
+  @media (max-width: 900px) {
+    main {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Duas esferas iguais ligadas por uma corda inicialmente frouxa</h1>
+  <div class="subtitle">
+    Modelo: duas massas iguais, centro de massa parado, separação inicial vertical <code>l/2</code>.
+    A esfera de cima começa com velocidade <code>+v0</code> para a direita; a de baixo, <code>-v0</code>.
+    Quando a corda estica, a componente radial da velocidade relativa obedece a
+    <code>vᵣ⁺ = − e vᵣ⁻</code>.
+  </div>
+</header>
+
+<main>
+  <section class="card canvas-wrap">
+    <canvas id="sim" width="760" height="560"></canvas>
+  </section>
+
+  <aside class="card controls">
+    <div class="row">
+      <label for="e">Coeficiente de restituição do tranco, e</label>
+      <div class="value" id="eVal"></div>
+      <input id="e" type="range" min="0" max="1" step="0.01" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="v0">Velocidade inicial, v0</label>
+      <div class="value" id="v0Val"></div>
+      <input id="v0" type="range" min="0.2" max="3" step="0.05" value="1" />
+    </div>
+
+    <div class="row">
+      <label for="L">Comprimento da corda, l</label>
+      <div class="value" id="LVal"></div>
+      <input id="L" type="range" min="1" max="5" step="0.1" value="3" />
+    </div>
+
+    <div class="row">
+      <label for="speed">Velocidade da simulação</label>
+      <div class="value" id="speedVal"></div>
+      <input id="speed" type="range" min="0.1" max="3" step="0.1" value="1" />
+    </div>
+
+    <div class="buttons">
+      <button class="primary" id="play">Pausar</button>
+      <button id="reset">Resetar</button>
+      <button id="step">Um passo</button>
+      <button id="trail">Rastro: ligado</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><span>Estado da corda</span><span id="state"></span></div>
+      <div class="metric"><span>Tempo</span><span id="time"></span></div>
+      <div class="metric"><span>Distância entre esferas</span><span id="dist"></span></div>
+      <div class="metric"><span>Energia / energia inicial</span><span id="energy"></span></div>
+      <div class="metric"><span>Momento angular / inicial</span><span id="angmom"></span></div>
+      <div class="metric"><span>Choques com a corda</span><span id="hits"></span></div>
+      <div class="metric"><span>Primeiro contato previsto</span><span id="firstHit"></span></div>
+      <div class="metric"><span>Depois do 1º choque</span><span id="afterFirst"></span></div>
+    </div>
+
+    <div class="note">
+      <b>Como ler:</b> com <code>e = 1</code>, o tranco é elástico: a componente radial reflete e a energia fica constante.
+      Com <code>e = 0</code>, a componente radial é zerada: o simulador prende a corda e o sistema entra em rotação circular.
+      Valores intermediários dissipam apenas parte da componente radial a cada tranco.
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  const canvas = document.getElementById("sim");
+  const ctx = canvas.getContext("2d");
+
+  const controls = {
+    e: document.getElementById("e"),
+    v0: document.getElementById("v0"),
+    L: document.getElementById("L"),
+    speed: document.getElementById("speed"),
+  };
+
+  const out = {
+    eVal: document.getElementById("eVal"),
+    v0Val: document.getElementById("v0Val"),
+    LVal: document.getElementById("LVal"),
+    speedVal: document.getElementById("speedVal"),
+    state: document.getElementById("state"),
+    time: document.getElementById("time"),
+    dist: document.getElementById("dist"),
+    energy: document.getElementById("energy"),
+    angmom: document.getElementById("angmom"),
+    hits: document.getElementById("hits"),
+    firstHit: document.getElementById("firstHit"),
+    afterFirst: document.getElementById("afterFirst"),
+  };
+
+  const playBtn = document.getElementById("play");
+  const resetBtn = document.getElementById("reset");
+  const stepBtn = document.getElementById("step");
+  const trailBtn = document.getElementById("trail");
+
+  let params, state;
+  let running = true;
+  let showTrail = true;
+  let lastStamp = null;
+  let trail = [];
+
+  function readParams() {
+    return {
+      e: Number(controls.e.value),
+      v0: Number(controls.v0.value),
+      L: Number(controls.L.value),
+      speed: Number(controls.speed.value),
+      m: 1
+    };
+  }
+
+  function reset() {
+    params = readParams();
+    state = {
+      t: 0,
+      r: { x: 0, y: params.L / 2 },       // r = posição da esfera de cima - posição da de baixo
+      v: { x: 2 * params.v0, y: 0 },       // velocidade relativa
+      mode: "slack",
+      omega: 0,
+      hits: 0,
+      firstCollisionSeen: false,
+      firstAfterText: "—",
+      E0: params.m * params.v0 * params.v0,
+      J0: (params.m / 2) * cross({ x: 0, y: params.L / 2 }, { x: 2 * params.v0, y: 0 })
+    };
+    trail = [];
+    updateLabels();
+    draw();
+  }
+
+  function updateLabels() {
+    params = readParams();
+    out.eVal.textContent = params.e.toFixed(2);
+    out.v0Val.textContent = params.v0.toFixed(2);
+    out.LVal.textContent = params.L.toFixed(1);
+    out.speedVal.textContent = params.speed.toFixed(1) + "×";
+
+    const first = Math.sqrt(3) * params.L / (4 * params.v0);
+    out.firstHit.textContent = "t = " + first.toFixed(3);
+  }
+
+  function dot(a, b) { return a.x * b.x + a.y * b.y; }
+  function cross(a, b) { return a.x * b.y - a.y * b.x; }
+  function norm(a) { return Math.hypot(a.x, a.y); }
+  function add(a, b) { return { x: a.x + b.x, y: a.y + b.y }; }
+  function mul(a, s) { return { x: a.x * s, y: a.y * s }; }
+
+  function kineticEnergy() {
+    return params.m * dot(state.v, state.v) / 4;
+  }
+
+  function angularMomentum() {
+    return (params.m / 2) * cross(state.r, state.v);
+  }
+
+  function solveImpactTime(r, v, L, dt) {
+    // Resolve |r + v tau|^2 = L^2, com 0 <= tau <= dt.
+    const a = dot(v, v);
+    const b = 2 * dot(r, v);
+    const c = dot(r, r) - L * L;
+    const disc = b * b - 4 * a * c;
+    if (a <= 1e-14 || disc < 0) return null;
+
+    const s = Math.sqrt(disc);
+    const t1 = (-b - s) / (2 * a);
+    const t2 = (-b + s) / (2 * a);
+    const eps = 1e-10;
+
+    let candidates = [t1, t2].filter(t => t >= -eps && t <= dt + eps);
+    if (!candidates.length) return null;
+    candidates.sort((x, y) => x - y);
+    return Math.max(0, candidates[0]);
+  }
+
+  function applyImpact() {
+    const L = params.L;
+    const e = params.e;
+    const d = norm(state.r);
+    const n = { x: state.r.x / d, y: state.r.y / d };
+    const vr = dot(state.v, n);
+
+    if (vr <= 0) return;
+
+    const vt = {
+      x: state.v.x - vr * n.x,
+      y: state.v.y - vr * n.y
+    };
+
+    const beforeE = kineticEnergy();
+
+    // Lei de restituição radial:
+    // v+ = vt - e vr n
+    state.v = {
+      x: vt.x - e * vr * n.x,
+      y: vt.y - e * vr * n.y
+    };
+
+    state.hits++;
+
+    if (!state.firstCollisionSeen) {
+      state.firstCollisionSeen = true;
+      const afterE = kineticEnergy();
+      const lossPct = 100 * (1 - afterE / beforeE);
+      state.firstAfterText =
+        "perda no tranco = " + lossPct.toFixed(1) + "% da energia imediatamente antes";
+    }
+
+    // Caso perfeitamente inelástico: captura na restrição.
+    // A componente radial virou zero; a corda passa a ficar tensa e fornece força centrípeta.
+    if (e < 0.000001) {
+      state.mode = "taut";
+      state.r = mul(n, L);
+      state.omega = cross(state.r, state.v) / (L * L);
+      state.v = {
+        x: -state.omega * state.r.y,
+        y:  state.omega * state.r.x
+      };
+    }
+  }
+
+  function advance(dt) {
+    params = readParams();
+
+    // Se parâmetros mudaram enquanto roda, resetamos para evitar misturar escalas físicas.
+    // Isso deixa a interação mais honesta.
+    if (Math.abs(params.L - Number(controls.L.dataset.current || params.L)) > 1e-12 ||
+        Math.abs(params.v0 - Number(controls.v0.dataset.current || params.v0)) > 1e-12) {
+      reset();
+      return;
+    }
+
+    let remaining = dt;
+    let guard = 0;
+
+    while (remaining > 1e-8 && guard++ < 10) {
+      if (state.mode === "taut") {
+        const L = params.L;
+        const theta = Math.atan2(state.r.y, state.r.x) + state.omega * remaining;
+        state.r = { x: L * Math.cos(theta), y: L * Math.sin(theta) };
+        state.v = {
+          x: -state.omega * state.r.y,
+          y:  state.omega * state.r.x
+        };
+        state.t += remaining;
+        remaining = 0;
+      } else {
+        const rNext = add(state.r, mul(state.v, remaining));
+        const dNext = norm(rNext);
+
+        if (dNext <= params.L + 1e-9) {
+          state.r = rNext;
+          state.t += remaining;
+          remaining = 0;
+        } else {
+          const tau = solveImpactTime(state.r, state.v, params.L, remaining);
+          if (tau === null) {
+            // fallback numérico: projeta na borda e aplica impacto.
+            state.r = mul(rNext, params.L / dNext);
+            state.t += remaining;
+            applyImpact();
+            remaining = 0;
+          } else {
+            state.r = add(state.r, mul(state.v, tau));
+            state.t += tau;
+            applyImpact();
+            remaining -= tau;
+
+            // Afasta um tiquinho para dentro quando não capturou, evitando rechoque numérico.
+            if (state.mode === "slack") {
+              state.r = add(state.r, mul(state.v, 1e-7));
+            }
+          }
+        }
+      }
+    }
+
+    if (showTrail) {
+      trail.push({ x: state.r.x, y: state.r.y, mode: state.mode });
+      if (trail.length > 800) trail.shift();
+    }
+  }
+
+  function toScreen(p) {
+    const pad = 52;
+    const usable = Math.min(canvas.width, canvas.height) - 2 * pad;
+    const scale = usable / (params.L * 1.35);
+    return {
+      x: canvas.width / 2 + p.x * scale,
+      y: canvas.height / 2 - p.y * scale,
+      scale
+    };
+  }
+
+  function drawArrow(from, vec, color) {
+    const a = toScreen(from);
+    const scale = a.scale;
+    const to = { x: from.x + vec.x * 0.22, y: from.y + vec.y * 0.22 };
+    const b = toScreen(to);
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    const len = 9;
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - len * Math.cos(ang - Math.PI / 6), b.y - len * Math.sin(ang - Math.PI / 6));
+    ctx.lineTo(b.x - len * Math.cos(ang + Math.PI / 6), b.y - len * Math.sin(ang + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Disco permitido no espaço relativo, desenhado como guia.
+    const center = toScreen({ x: 0, y: 0 });
+    const R = params.L * center.scale;
+    ctx.save();
+    ctx.strokeStyle = "rgba(37, 99, 235, 0.22)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(canvas.width / 2, canvas.height / 2, R / 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Eixos
+    ctx.save();
+    ctx.strokeStyle = "rgba(102,112,133,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(32, canvas.height / 2);
+    ctx.lineTo(canvas.width - 32, canvas.height / 2);
+    ctx.moveTo(canvas.width / 2, 32);
+    ctx.lineTo(canvas.width / 2, canvas.height - 32);
+    ctx.stroke();
+    ctx.restore();
+
+    const pTop = { x: state.r.x / 2, y: state.r.y / 2 };
+    const pBot = { x: -state.r.x / 2, y: -state.r.y / 2 };
+    const sTop = toScreen(pTop);
+    const sBot = toScreen(pBot);
+
+    // Rastro das massas
+    if (showTrail && trail.length > 1) {
+      ctx.save();
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "rgba(37,99,235,0.22)";
+      ctx.beginPath();
+      for (let i = 0; i < trail.length; i++) {
+        const p = { x: trail[i].x / 2, y: trail[i].y / 2 };
+        const s = toScreen(p);
+        if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(180,35,24,0.20)";
+      ctx.beginPath();
+      for (let i = 0; i < trail.length; i++) {
+        const p = { x: -trail[i].x / 2, y: -trail[i].y / 2 };
+        const s = toScreen(p);
+        if (i === 0) ctx.moveTo(s.x, s.y); else ctx.lineTo(s.x, s.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Corda: reta quando tensa; curva pontilhada quando frouxa.
+    ctx.save();
+    const dist = norm(state.r);
+    const taut = state.mode === "taut" || Math.abs(dist - params.L) < 1e-3;
+    ctx.strokeStyle = taut ? "#475467" : "rgba(102,112,133,0.55)";
+    ctx.lineWidth = taut ? 3 : 2;
+    if (!taut) ctx.setLineDash([6, 6]);
+
+    ctx.beginPath();
+    if (taut) {
+      ctx.moveTo(sTop.x, sTop.y);
+      ctx.lineTo(sBot.x, sBot.y);
+    } else {
+      const mx = (sTop.x + sBot.x) / 2;
+      const my = (sTop.y + sBot.y) / 2;
+      const dx = sBot.x - sTop.x;
+      const dy = sBot.y - sTop.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const sag = Math.min(55, Math.max(18, (params.L - dist) * sTop.scale * 0.45));
+      const nx = -dy / len;
+      const ny = dx / len;
+      ctx.moveTo(sTop.x, sTop.y);
+      ctx.quadraticCurveTo(mx + nx * sag, my + ny * sag, sBot.x, sBot.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Bolas
+    function ball(s, color, label) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#111827";
+      ctx.font = "12px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(label, s.x, s.y - 20);
+      ctx.restore();
+    }
+
+    ball(sTop, "#60a5fa", "cima");
+    ball(sBot, "#f87171", "baixo");
+
+    // Velocidades individuais v1 = vrel/2, v2 = -vrel/2
+    drawArrow(pTop, { x: state.v.x / 2, y: state.v.y / 2 }, "#2563eb");
+    drawArrow(pBot, { x: -state.v.x / 2, y: -state.v.y / 2 }, "#b42318");
+
+    // Texto no canvas
+    ctx.save();
+    ctx.fillStyle = "#475467";
+    ctx.font = "13px system-ui";
+    ctx.textAlign = "left";
+    ctx.fillText("Setas: velocidades instantâneas das esferas", 18, 24);
+    ctx.fillText("Círculo pontilhado central: limite para cada massa em relação ao CM = l/2", 18, 43);
+    ctx.restore();
+
+    updateMetrics();
+  }
+
+  function updateMetrics() {
+    const dist = norm(state.r);
+    const E = kineticEnergy();
+    const J = angularMomentum();
+
+    const stateLabel = state.mode === "taut"
+      ? '<span class="pill taut">tensa</span>'
+      : '<span class="pill slack">frouxa</span>';
+
+    out.state.innerHTML = stateLabel;
+    out.time.textContent = state.t.toFixed(3);
+    out.dist.textContent = dist.toFixed(3) + " / l = " + (dist / params.L).toFixed(3);
+    out.energy.textContent = (E / state.E0).toFixed(4);
+    out.angmom.textContent = state.J0 === 0 ? "—" : (J / state.J0).toFixed(4);
+    out.hits.textContent = String(state.hits);
+    out.afterFirst.textContent = state.firstAfterText;
+  }
+
+  function frame(stamp) {
+    if (lastStamp === null) lastStamp = stamp;
+    const rawDt = Math.min(0.035, (stamp - lastStamp) / 1000);
+    lastStamp = stamp;
+
+    if (running) {
+      const dt = rawDt * readParams().speed;
+      // substeps para estabilidade
+      const n = Math.max(1, Math.ceil(dt / 0.006));
+      for (let i = 0; i < n; i++) advance(dt / n);
+      draw();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener("click", () => {
+    running = !running;
+    playBtn.textContent = running ? "Pausar" : "Rodar";
+    playBtn.classList.toggle("primary", running);
+    lastStamp = null;
+  });
+
+  resetBtn.addEventListener("click", () => {
+    controls.L.dataset.current = controls.L.value;
+    controls.v0.dataset.current = controls.v0.value;
+    reset();
+  });
+
+  stepBtn.addEventListener("click", () => {
+    running = false;
+    playBtn.textContent = "Rodar";
+    playBtn.classList.remove("primary");
+    advance(0.02 * readParams().speed);
+    draw();
+  });
+
+  trailBtn.addEventListener("click", () => {
+    showTrail = !showTrail;
+    trailBtn.textContent = "Rastro: " + (showTrail ? "ligado" : "desligado");
+    if (!showTrail) trail = [];
+    draw();
+  });
+
+  for (const key of Object.keys(controls)) {
+    controls[key].addEventListener("input", () => {
+      updateLabels();
+      if (key === "e" || key === "speed") {
+        params.e = Number(controls.e.value);
+        params.speed = Number(controls.speed.value);
+      } else {
+        controls.L.dataset.current = controls.L.value;
+        controls.v0.dataset.current = controls.v0.value;
+        reset();
+      }
+    });
+  }
+
+  controls.L.dataset.current = controls.L.value;
+  controls.v0.dataset.current = controls.v0.value;
+  reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
