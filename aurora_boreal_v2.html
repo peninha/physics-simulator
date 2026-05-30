@@ -79,6 +79,14 @@
     button:hover {
       background: rgba(120, 210, 255, 0.22);
     }
+    button.active {
+      background: rgba(255, 223, 110, 0.24);
+      border-color: rgba(255, 223, 110, 0.55);
+      color: #fff8cf;
+    }
+    .hidden {
+      display: none;
+    }
     .mini {
       font-size: 12px;
       color: #b8d9f7;
@@ -119,6 +127,11 @@
       </p>
 
       <div class="controls">
+        <div class="button-row">
+          <button id="didacticModeBtn" class="active">Modo didático</button>
+          <button id="physicalModeBtn">Modo físico</button>
+        </div>
+
         <div>
           <div class="control-row">
             <label for="pitch">Ângulo de pitch no equador</label>
@@ -127,7 +140,7 @@
           <input id="pitch" type="range" min="5" max="85" step="1" value="45" />
         </div>
 
-        <div>
+        <div class="physical-control hidden">
           <div class="control-row">
             <label for="energy">Energia do elétron</label>
             <span id="energyValue">10.0 keV</span>
@@ -135,7 +148,7 @@
           <input id="energy" type="range" min="0.5" max="30" step="0.5" value="10" />
         </div>
 
-        <div>
+        <div class="physical-control hidden">
           <div class="control-row">
             <label for="field">Campo magnético no equador</label>
             <span id="fieldValue">0.30 µT</span>
@@ -145,15 +158,16 @@
 
         <div>
           <div class="control-row">
-            <label for="speed">Escala temporal física</label>
-            <span id="speedValue">10^-4.0×</span>
+            <label id="speedLabel" for="speed">Velocidade da animação</label>
+            <span id="speedValue">1.0×</span>
           </div>
-          <input id="speed" type="range" min="-6" max="0" step="0.25" value="-4" />
+          <input id="speed" type="range" min="0.01" max="2.5" step="0.01" value="1.0" />
         </div>
 
         <div class="button-row">
           <button id="pauseBtn">Pausar</button>
           <button id="cameraBtn">Enquadrar partícula</button>
+          <button id="pitchGuideBtn">Ocultar pitch</button>
           <button id="resetBtn">Reiniciar</button>
         </div>
       </div>
@@ -187,10 +201,15 @@
     const pitchValue = document.getElementById('pitchValue');
     const energyValue = document.getElementById('energyValue');
     const fieldValue = document.getElementById('fieldValue');
+    const speedLabel = document.getElementById('speedLabel');
     const speedValue = document.getElementById('speedValue');
     const statusBox = document.getElementById('status');
+    const didacticModeBtn = document.getElementById('didacticModeBtn');
+    const physicalModeBtn = document.getElementById('physicalModeBtn');
+    const physicalControls = Array.from(document.querySelectorAll('.physical-control'));
     const pauseBtn = document.getElementById('pauseBtn');
     const cameraBtn = document.getElementById('cameraBtn');
+    const pitchGuideBtn = document.getElementById('pitchGuideBtn');
     const resetBtn = document.getElementById('resetBtn');
 
     const scene = new THREE.Scene();
@@ -375,6 +394,29 @@
     const particleLight = new THREE.PointLight(0x86f1ff, 8, 3, 2);
     particleGroup.add(particleLight);
 
+    const gyroCloud = new THREE.Group();
+    scene.add(gyroCloud);
+    const gyroCloudRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.16, 0.028, 16, 96),
+      new THREE.MeshBasicMaterial({
+        color: 0x8ffbff,
+        transparent: true,
+        opacity: 0.3,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    const gyroCloudCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.095, 20, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0x75dfff,
+        transparent: true,
+        opacity: 0.18,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    gyroCloud.add(gyroCloudRing, gyroCloudCore);
+    gyroCloud.visible = false;
+
     // Trail
     const trailLength = 160;
     const trailPositions = new Float32Array(trailLength * 3);
@@ -422,9 +464,12 @@
     let equatorialPitchDeg = Number(pitchSlider.value);
     let electronEnergyKeV = Number(energySlider.value);
     let equatorialFieldMicroT = Number(fieldSlider.value);
-    let timeScale = Math.pow(10, Number(speedSlider.value));
+    let simMode = 'didactic';
+    let animationSpeed = Number(speedSlider.value);
+    let timeScale = 1e-4;
     let paused = false;
     let followParticle = false;
+    let showPitchGuide = true;
     let time = 0;
     let burstTimer = 0;
     let particleTheta = Math.PI / 2;
@@ -442,17 +487,27 @@
     energySlider.addEventListener('input', () => {
       electronEnergyKeV = Number(energySlider.value);
       energyValue.textContent = `${electronEnergyKeV.toFixed(1)} keV`;
+      updateStatus();
     });
 
     fieldSlider.addEventListener('input', () => {
       equatorialFieldMicroT = Number(fieldSlider.value);
       fieldValue.textContent = `${equatorialFieldMicroT.toFixed(2)} µT`;
+      updateStatus();
     });
 
     speedSlider.addEventListener('input', () => {
-      timeScale = Math.pow(10, Number(speedSlider.value));
-      speedValue.textContent = `10^${Number(speedSlider.value).toFixed(1)}×`;
+      if (simMode === 'didactic') {
+        animationSpeed = Number(speedSlider.value);
+      } else {
+        timeScale = Math.pow(10, Number(speedSlider.value));
+      }
+      updateSpeedLabel();
+      updateStatus();
     });
+
+    didacticModeBtn.addEventListener('click', () => setMode('didactic'));
+    physicalModeBtn.addEventListener('click', () => setMode('physical'));
 
     pauseBtn.addEventListener('click', () => {
       paused = !paused;
@@ -464,6 +519,12 @@
       cameraBtn.textContent = followParticle ? 'Soltar câmera' : 'Enquadrar partícula';
     });
 
+    pitchGuideBtn.addEventListener('click', () => {
+      showPitchGuide = !showPitchGuide;
+      pitchGuide.visible = showPitchGuide;
+      pitchGuideBtn.textContent = showPitchGuide ? 'Ocultar pitch' : 'Mostrar pitch';
+    });
+
     resetBtn.addEventListener('click', () => {
       time = 0;
       resetParticleState();
@@ -471,6 +532,46 @@
       burst.visible = false;
       burstTimer = 0;
     });
+
+    function setMode(nextMode) {
+      if (simMode === nextMode) return;
+      simMode = nextMode;
+      time = 0;
+      resetParticleState();
+      trail.length = 0;
+      burst.visible = false;
+      burstTimer = 0;
+
+      didacticModeBtn.classList.toggle('active', simMode === 'didactic');
+      physicalModeBtn.classList.toggle('active', simMode === 'physical');
+      physicalControls.forEach((el) => el.classList.toggle('hidden', simMode !== 'physical'));
+
+      if (simMode === 'didactic') {
+        speedLabel.textContent = 'Velocidade da animação';
+        speedSlider.min = '0.01';
+        speedSlider.max = '2.5';
+        speedSlider.step = '0.01';
+        speedSlider.value = String(animationSpeed);
+      } else {
+        speedLabel.textContent = 'Escala temporal física';
+        speedSlider.min = '-6';
+        speedSlider.max = '0';
+        speedSlider.step = '0.25';
+        speedSlider.value = String(Math.log10(timeScale));
+      }
+      updateSpeedLabel();
+      updateStatus();
+    }
+
+    function formatAnimationSpeed(value) {
+      return `${value < 0.1 ? value.toFixed(2) : value.toFixed(1)}×`;
+    }
+
+    function updateSpeedLabel() {
+      speedValue.textContent = simMode === 'didactic'
+        ? formatAnimationSpeed(animationSpeed)
+        : `10^${Number(speedSlider.value).toFixed(1)}×`;
+    }
 
     function Bnorm(theta) {
       const s = Math.sin(theta);
@@ -547,14 +648,23 @@
         ? 'REGIME: cone de perda → o elétron precipita na atmosfera e acende a aurora.'
         : `REGIME: espelho magnético → reflexão em latitude magnética ≈ ±${mirrorInfo.lambdaMirrorDeg.toFixed(1)}°.`;
 
-      const lines = [
-        `Pitch no equador: ${equatorialPitchDeg.toFixed(0)}°`,
-        `Energia: ${electronEnergyKeV.toFixed(1)} keV → |v| ≈ ${(speed / 1e6).toFixed(1)} Mm/s`,
-        `f_c no equador: ${(gyroFreqEqHz / 1000).toFixed(1)} kHz`,
-        `Escala temporal: ${timeScale.toExponential(1)} s físicos / s de vídeo`,
-        `Ângulo aproximado do cone de perda: ${lcDeg}°`,
-        state,
-      ];
+      const lines = simMode === 'didactic'
+        ? [
+          'MODO: didático conceitual',
+          `Velocidade visual: ${formatAnimationSpeed(animationSpeed)}`,
+          `Pitch no equador: ${equatorialPitchDeg.toFixed(0)}°`,
+          `Ângulo aproximado do cone de perda: ${lcDeg}°`,
+          state,
+        ]
+        : [
+          'MODO: físico aproximado',
+          `Pitch no equador: ${equatorialPitchDeg.toFixed(0)}°`,
+          `Energia: ${electronEnergyKeV.toFixed(1)} keV → |v| ≈ ${(speed / 1e6).toFixed(1)} Mm/s`,
+          `f_c no equador: ${(gyroFreqEqHz / 1000).toFixed(1)} kHz`,
+          `Escala temporal: ${timeScale.toExponential(1)} s físicos / s de vídeo`,
+          `Ângulo aproximado do cone de perda: ${lcDeg}°`,
+          state,
+        ];
       if (extra) lines.push(extra);
       statusBox.textContent = lines.join('\n');
     }
@@ -563,7 +673,8 @@
     pitchValue.textContent = `${equatorialPitchDeg}°`;
     energyValue.textContent = `${electronEnergyKeV.toFixed(1)} keV`;
     fieldValue.textContent = `${equatorialFieldMicroT.toFixed(2)} µT`;
-    speedValue.textContent = `10^${Number(speedSlider.value).toFixed(1)}×`;
+    updateSpeedLabel();
+    physicalControls.forEach((el) => el.classList.add('hidden'));
 
     function pointOnActiveLine(theta) {
       const s = Math.sin(theta);
@@ -625,81 +736,110 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt = Math.min(clock.getDelta(), 0.03);
-      const physicalDt = paused ? 0 : dt * timeScale;
-      if (!paused) time += physicalDt;
+      const modeDt = paused ? 0 : (simMode === 'didactic' ? dt * animationSpeed : dt * timeScale);
+      if (!paused) time += modeDt;
 
       earth.rotation.y += dt * 0.05;
       atmosphere.rotation.y += dt * 0.06;
       stars.rotation.y += dt * 0.004;
 
-      updateParticle(physicalDt, dt);
+      if (simMode === 'didactic') {
+        updateParticleDidactic(dt);
+      } else {
+        updateParticlePhysical(modeDt, dt);
+      }
 
       controls.update();
       renderer.render(scene, camera);
     }
 
-    function updateParticle(physicalDt, visualDt) {
+    function updateParticleDidactic(visualDt) {
       const alphaEq = mirrorInfo.alphaEqRad;
-      const sinAlphaEq = Math.sin(alphaEq);
-      const { speed, bEqTesla } = physicalParams();
+      const bounceFreq = 0.55;
+      const gyroFreq = 24.0;
+      let theta;
       let precipitating = false;
       let localPitch = alphaEq;
-      let BByBeq = Bnorm(particleTheta) / Bnorm(Math.PI / 2);
+      let BByBeq = 1;
 
-      if (physicalDt > 0) {
-        const steps = Math.max(1, Math.ceil(physicalDt / 0.0005));
-        const subDt = physicalDt / steps;
-
-        for (let i = 0; i < steps; i++) {
-          BByBeq = Bnorm(particleTheta) / Bnorm(Math.PI / 2);
-          const sinAlphaLocal = Math.min(1, sinAlphaEq * Math.sqrt(BByBeq));
-          const vParallel = speed * Math.sqrt(Math.max(0, 1 - sinAlphaLocal * sinAlphaLocal));
-          const dTheta = parallelSign * (vParallel * subDt) / (EARTH_RADIUS_M * dsDTheta(particleTheta));
-          particleTheta += dTheta;
-
-          if (mirrorInfo.inLossCone) {
-            if (particleTheta <= mirrorInfo.thetaAtAtm) {
-              particleTheta = mirrorInfo.thetaAtAtm;
-              parallelSign = 1;
-              precipitating = true;
-            } else if (particleTheta >= Math.PI - mirrorInfo.thetaAtAtm) {
-              particleTheta = Math.PI - mirrorInfo.thetaAtAtm;
-              parallelSign = -1;
-              precipitating = true;
-            }
-          } else if (particleTheta <= mirrorInfo.thetaMirror) {
-            particleTheta = mirrorInfo.thetaMirror;
-            parallelSign = 1;
-          } else if (particleTheta >= Math.PI - mirrorInfo.thetaMirror) {
-            particleTheta = Math.PI - mirrorInfo.thetaMirror;
-            parallelSign = -1;
-          }
+      if (mirrorInfo.inLossCone) {
+        const thetaNorthAtm = mirrorInfo.thetaAtAtm;
+        const thetaSouthAtm = Math.PI - mirrorInfo.thetaAtAtm;
+        const phase = (time * bounceFreq * 2) % 2;
+        if (phase < 1) {
+          theta = THREE.MathUtils.lerp(thetaNorthAtm, thetaSouthAtm, phase);
+        } else {
+          theta = THREE.MathUtils.lerp(thetaSouthAtm, thetaNorthAtm, phase - 1);
         }
+        const currentB = Bnorm(theta);
+        BByBeq = currentB / Bnorm(Math.PI / 2);
+        localPitch = Math.asin(Math.min(1, Math.sin(alphaEq) * Math.sqrt(BByBeq)));
+
+        const closeToPole = theta <= thetaNorthAtm + 0.015 || theta >= thetaSouthAtm - 0.015;
+        if (closeToPole) precipitating = true;
+      } else {
+        const lambdaM = Math.PI / 2 - mirrorInfo.thetaMirror;
+        const lambda = lambdaM * Math.sin(time * bounceFreq * 2 * Math.PI);
+        theta = Math.PI / 2 - lambda;
+        const currentB = Bnorm(theta);
+        BByBeq = currentB / Bnorm(Math.PI / 2);
+        localPitch = Math.asin(Math.min(1, Math.sin(alphaEq) * Math.sqrt(BByBeq)));
       }
 
-      const theta = particleTheta;
-      BByBeq = Bnorm(theta) / Bnorm(Math.PI / 2);
-      const sinAlphaLocal = Math.min(1, sinAlphaEq * Math.sqrt(BByBeq));
-      localPitch = Math.asin(sinAlphaLocal);
-      const bLocalTesla = bEqTesla * BByBeq;
-      const cyclotronOmega = ELECTRON_CHARGE * bLocalTesla / ELECTRON_MASS;
-      const vPerp = speed * sinAlphaLocal;
-      const larmorRadiusM = cyclotronOmega > 0 ? vPerp / cyclotronOmega : 0;
-      gyroPhase = (gyroPhase + cyclotronOmega * physicalDt) % (Math.PI * 2);
-
-      const { center, tangent, normal, binormal } = frameAt(theta);
-
-      const gyroradius = Math.min(0.55, Math.max(0.015, (larmorRadiusM / EARTH_RADIUS_M) * LARMOR_VISUAL_GAIN));
-      const offset = normal.clone().multiplyScalar(Math.cos(gyroPhase) * gyroradius)
-        .add(binormal.clone().multiplyScalar(Math.sin(gyroPhase) * gyroradius));
-
+      const { center, normal, binormal } = frameAt(theta);
+      const gyroradius = 0.12 / Math.sqrt(BByBeq) * (0.55 + 0.45 * Math.sin(localPitch));
+      const gyroPhaseNow = time * gyroFreq * 2 * Math.PI;
+      const offset = normal.clone().multiplyScalar(Math.cos(gyroPhaseNow) * gyroradius)
+        .add(binormal.clone().multiplyScalar(Math.sin(gyroPhaseNow) * gyroradius));
       const pos = center.clone().add(offset);
-      particleGroup.position.copy(pos);
 
-      trail.unshift(pos.clone());
+      renderParticleState({
+        pos,
+        center,
+        visualDt,
+        precipitating,
+        theta,
+        localPitch,
+        extraLines: [
+          mirrorInfo.inLossCone ? 'Agora: precipitação auroral.' : 'Agora: bounce aprisionado.'
+        ],
+      });
+    }
+
+    function renderParticleState({
+      pos,
+      center,
+      visualDt,
+      precipitating,
+      theta,
+      localPitch,
+      extraLines,
+      useGyroCloud = false,
+      cloudRadius = 0.16,
+      tangent = null,
+    }) {
+      if (useGyroCloud) {
+        particleGroup.position.copy(center);
+        particle.visible = false;
+        particleGlow.visible = false;
+        gyroCloud.visible = true;
+        gyroCloud.position.copy(center);
+        gyroCloud.scale.setScalar(Math.max(0.7, cloudRadius / 0.16));
+        if (tangent) {
+          gyroCloud.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent.clone().normalize());
+        }
+      } else {
+        particleGroup.position.copy(pos);
+        particle.visible = true;
+        particleGlow.visible = true;
+        gyroCloud.visible = false;
+      }
+
+      const trailPoint = useGyroCloud ? center.clone() : pos.clone();
+      trail.unshift(trailPoint);
       while (trail.length > trailLength) trail.pop();
       for (let i = 0; i < trailLength; i++) {
-        const p = trail[i] || pos;
+        const p = trail[i] || trailPoint;
         trailPositions[i * 3] = p.x;
         trailPositions[i * 3 + 1] = p.y;
         trailPositions[i * 3 + 2] = p.z;
@@ -730,12 +870,92 @@
 
       const latDeg = (90 - THREE.MathUtils.radToDeg(theta)).toFixed(1);
       const localPitchDeg = THREE.MathUtils.radToDeg(localPitch).toFixed(1);
+      updateStatus([
+        `Latitude instantânea: ${latDeg}°`,
+        `Pitch local: ${localPitchDeg}°`,
+        ...extraLines,
+      ].join('\n'));
+    }
+
+    function updateParticlePhysical(physicalDt, visualDt) {
+      const alphaEq = mirrorInfo.alphaEqRad;
+      const sinAlphaEq = Math.sin(alphaEq);
+      const { speed, bEqTesla } = physicalParams();
+      let precipitating = false;
+      let localPitch = alphaEq;
+      let BByBeq = Bnorm(particleTheta) / Bnorm(Math.PI / 2);
+      const mirrorEps = 0.0008;
+
+      if (physicalDt > 0) {
+        const steps = Math.max(1, Math.ceil(physicalDt / 0.0005));
+        const subDt = physicalDt / steps;
+
+        for (let i = 0; i < steps; i++) {
+          BByBeq = Bnorm(particleTheta) / Bnorm(Math.PI / 2);
+          const sinAlphaLocal = Math.min(1, sinAlphaEq * Math.sqrt(BByBeq));
+          const vParallel = speed * Math.sqrt(Math.max(0, 1 - sinAlphaLocal * sinAlphaLocal));
+          const dTheta = parallelSign * (vParallel * subDt) / (EARTH_RADIUS_M * dsDTheta(particleTheta));
+          particleTheta += dTheta;
+
+          if (mirrorInfo.inLossCone) {
+            if (particleTheta <= mirrorInfo.thetaAtAtm) {
+              particleTheta = mirrorInfo.thetaAtAtm + mirrorEps;
+              parallelSign = 1;
+              precipitating = true;
+            } else if (particleTheta >= Math.PI - mirrorInfo.thetaAtAtm) {
+              particleTheta = Math.PI - mirrorInfo.thetaAtAtm - mirrorEps;
+              parallelSign = -1;
+              precipitating = true;
+            }
+          } else if (particleTheta <= mirrorInfo.thetaMirror) {
+            particleTheta = mirrorInfo.thetaMirror + mirrorEps;
+            parallelSign = 1;
+          } else if (particleTheta >= Math.PI - mirrorInfo.thetaMirror) {
+            particleTheta = Math.PI - mirrorInfo.thetaMirror - mirrorEps;
+            parallelSign = -1;
+          }
+        }
+      }
+
+      const theta = particleTheta;
+      BByBeq = Bnorm(theta) / Bnorm(Math.PI / 2);
+      const sinAlphaLocal = Math.min(1, sinAlphaEq * Math.sqrt(BByBeq));
+      localPitch = Math.asin(sinAlphaLocal);
+      const bLocalTesla = bEqTesla * BByBeq;
+      const cyclotronOmega = ELECTRON_CHARGE * bLocalTesla / ELECTRON_MASS;
+      const vPerp = speed * sinAlphaLocal;
+      const larmorRadiusM = cyclotronOmega > 0 ? vPerp / cyclotronOmega : 0;
+      gyroPhase = (gyroPhase + cyclotronOmega * physicalDt) % (Math.PI * 2);
+
+      const { center, tangent, normal, binormal } = frameAt(theta);
+
+      const gyroradius = Math.min(0.55, Math.max(0.015, (larmorRadiusM / EARTH_RADIUS_M) * LARMOR_VISUAL_GAIN));
+      const gyroTurnsThisFrame = Math.abs(cyclotronOmega * physicalDt) / (Math.PI * 2);
+      const useGyroCloud = gyroTurnsThisFrame > 0.35;
+      const offset = normal.clone().multiplyScalar(Math.cos(gyroPhase) * gyroradius)
+        .add(binormal.clone().multiplyScalar(Math.sin(gyroPhase) * gyroradius));
+
+      const pos = center.clone().add(offset);
+
       const gyroFreqLocalHz = cyclotronOmega / (2 * Math.PI);
       const vParallel = speed * Math.cos(localPitch);
-      const extra = mirrorInfo.inLossCone
-        ? `Latitude instantânea: ${latDeg}°\nPitch local: ${localPitchDeg}°\nv∥: ${(vParallel / 1e6).toFixed(1)} Mm/s · raio Larmor real: ${larmorRadiusM.toFixed(0)} m\nf_c local: ${(gyroFreqLocalHz / 1000).toFixed(1)} kHz\nAgora: precipitação auroral.`
-        : `Latitude instantânea: ${latDeg}°\nPitch local: ${localPitchDeg}°\nv∥: ${(vParallel / 1e6).toFixed(1)} Mm/s · raio Larmor real: ${larmorRadiusM.toFixed(0)} m\nf_c local: ${(gyroFreqLocalHz / 1000).toFixed(1)} kHz\nAgora: bounce aprisionado.`;
-      updateStatus(extra);
+      renderParticleState({
+        pos,
+        center,
+        visualDt,
+        precipitating,
+        theta,
+        localPitch,
+        useGyroCloud,
+        cloudRadius: gyroradius,
+        tangent,
+        extraLines: [
+          `v∥: ${(vParallel / 1e6).toFixed(1)} Mm/s · raio Larmor real: ${larmorRadiusM.toFixed(0)} m`,
+          `f_c local: ${(gyroFreqLocalHz / 1000).toFixed(1)} kHz · giros/frame: ${gyroTurnsThisFrame.toFixed(1)}`,
+          useGyroCloud ? 'Giro muito rápido: exibindo nuvem ciclotrônica média.' : 'Giro amostrado como partícula.',
+          mirrorInfo.inLossCone ? 'Agora: precipitação auroral.' : 'Agora: bounce aprisionado.',
+        ],
+      });
     }
 
     window.addEventListener('resize', () => {
