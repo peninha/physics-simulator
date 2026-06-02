@@ -1,0 +1,1335 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurora, Aprisionamento e Cinturões de Van Allen V3</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #020611;
+      color: #eaf6ff;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    #overlay {
+      position: absolute;
+      left: 14px;
+      top: 14px;
+      width: min(465px, calc(100vw - 28px));
+      max-height: calc(100vh - 28px);
+      overflow: auto;
+      padding: 14px 16px;
+      background: rgba(7, 14, 29, 0.78);
+      border: 1px solid rgba(180, 220, 255, 0.18);
+      border-radius: 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 12px 44px rgba(0,0,0,0.32);
+      z-index: 10;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      line-height: 1.12;
+    }
+    p {
+      margin: 8px 0;
+      color: #d8ecff;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+    .tabs, .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tabs {
+      margin: 12px 0;
+    }
+    button {
+      background: rgba(120, 210, 255, 0.14);
+      color: #eff9ff;
+      border: 1px solid rgba(160, 225, 255, 0.22);
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button:hover {
+      background: rgba(120, 210, 255, 0.22);
+    }
+    button.active {
+      background: rgba(255, 223, 110, 0.24);
+      border-color: rgba(255, 223, 110, 0.58);
+      color: #fff8cf;
+    }
+    .controls {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .control {
+      display: grid;
+      gap: 4px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+    label {
+      font-size: 13px;
+      color: #d8ecff;
+    }
+    .value {
+      font-size: 13px;
+      color: #eff9ff;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: #77d9ff;
+    }
+    select {
+      width: 100%;
+      background: rgba(10, 22, 44, 0.92);
+      color: #eff9ff;
+      border: 1px solid rgba(160, 225, 255, 0.22);
+      border-radius: 9px;
+      padding: 7px 8px;
+      font-weight: 650;
+    }
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      margin: 2px 0;
+    }
+    .checks label {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+    }
+    #status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(19, 35, 64, 0.70);
+      border: 1px solid rgba(173, 221, 255, 0.13);
+      white-space: pre-line;
+      font-size: 12px;
+      line-height: 1.35;
+      font-variant-numeric: tabular-nums;
+    }
+    #inset {
+      position: absolute;
+      right: 14px;
+      top: 14px;
+      width: 275px;
+      padding: 10px;
+      background: rgba(7, 14, 29, 0.72);
+      border: 1px solid rgba(180, 220, 255, 0.16);
+      border-radius: 14px;
+      z-index: 9;
+      backdrop-filter: blur(8px);
+    }
+    #insetTitle {
+      font-size: 12px;
+      color: #d8ecff;
+      margin-bottom: 6px;
+    }
+    #larmorCanvas {
+      width: 100%;
+      height: 120px;
+      display: block;
+      border-radius: 9px;
+      background: rgba(3, 8, 18, 0.82);
+    }
+    #footer {
+      position: absolute;
+      right: 14px;
+      bottom: 12px;
+      padding: 8px 10px;
+      font-size: 12px;
+      background: rgba(8, 14, 28, 0.52);
+      border: 1px solid rgba(180, 220, 255, 0.12);
+      border-radius: 12px;
+      color: #d6eeff;
+      z-index: 10;
+    }
+    .hidden { display: none !important; }
+    @media (max-width: 880px) {
+      #inset {
+        left: 14px;
+        right: auto;
+        top: auto;
+        bottom: 58px;
+        width: min(275px, calc(100vw - 28px));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="overlay">
+      <h1>Aurora, Aprisionamento e Cinturões de Van Allen V3</h1>
+      <p id="modeText">
+        Comece com uma partícula em uma linha de campo, avance para parâmetros físicos,
+        depois veja populações e cinturões idealizados.
+      </p>
+
+      <div class="tabs">
+        <button class="tab active" data-mode="didactic">Didático</button>
+        <button class="tab" data-mode="physical">Físico</button>
+        <button class="tab" data-mode="multi">Múltiplas</button>
+        <button class="tab" data-mode="belts">Cinturões</button>
+      </div>
+
+      <div class="controls">
+        <div class="control one-particle">
+          <div class="row">
+            <label for="pitch">Ângulo de pitch no equador</label>
+            <span class="value" id="pitchValue">45°</span>
+          </div>
+          <input id="pitch" type="range" min="5" max="85" step="1" value="45" />
+        </div>
+
+        <div class="control physical-only multi-uses">
+          <div class="row">
+            <label for="species">Espécie</label>
+            <span class="value" id="speciesValue">elétron</span>
+          </div>
+          <select id="species">
+            <option value="electron">elétron</option>
+            <option value="proton">próton</option>
+          </select>
+        </div>
+
+        <div class="control physical-only multi-uses">
+          <div class="row">
+            <label for="energy">Energia</label>
+            <span class="value" id="energyValue">100 keV</span>
+          </div>
+          <input id="energy" type="range" min="1" max="3000" step="1" value="100" />
+        </div>
+
+        <div class="control physical-only multi-uses">
+          <div class="row">
+            <label for="lshell">L-shell</label>
+            <span class="value" id="lValue">3.40 Re</span>
+          </div>
+          <input id="lshell" type="range" min="1.25" max="7.00" step="0.05" value="3.40" />
+        </div>
+
+        <div class="control speed-control">
+          <div class="row">
+            <label id="speedLabel" for="speed">Velocidade da animação</label>
+            <span class="value" id="speedValue">1.0×</span>
+          </div>
+          <input id="speed" type="range" min="0.01" max="2.5" step="0.01" value="1" />
+        </div>
+
+        <div class="control multi-only hidden">
+          <div class="row">
+            <label for="multiPreset">Preset de partículas</label>
+            <span class="value" id="multiCountValue">24</span>
+          </div>
+          <select id="multiPreset">
+            <option value="sameL">mesmo L, pitches diferentes</option>
+            <option value="sameMeridian">mesmo meridiano, L diferentes</option>
+            <option value="random">distribuição aleatória</option>
+          </select>
+        </div>
+
+        <div class="control multi-only hidden">
+          <div class="row">
+            <label for="multiCount">Quantidade</label>
+            <span class="value" id="multiCountSliderValue">24</span>
+          </div>
+          <input id="multiCount" type="range" min="8" max="120" step="4" value="24" />
+        </div>
+
+        <div class="control belts-only hidden">
+          <div class="row">
+            <label for="innerIntensity">Cinturão interno (prótons)</label>
+            <span class="value" id="innerValue">1.0</span>
+          </div>
+          <input id="innerIntensity" type="range" min="0" max="2" step="0.05" value="1" />
+        </div>
+
+        <div class="control belts-only hidden">
+          <div class="row">
+            <label for="outerIntensity">Cinturão externo (elétrons)</label>
+            <span class="value" id="outerValue">1.0</span>
+          </div>
+          <input id="outerIntensity" type="range" min="0" max="2" step="0.05" value="1" />
+        </div>
+
+        <div class="control belts-only hidden">
+          <div class="row">
+            <label for="hissStrength">Plasmasfera / hiss</label>
+            <span class="value" id="hissValue">0.70</span>
+          </div>
+          <input id="hissStrength" type="range" min="0" max="1" step="0.01" value="0.70" />
+        </div>
+
+        <div class="control belts-only hidden">
+          <div class="row">
+            <label for="stormLevel">Atividade geomagnética</label>
+            <span class="value" id="stormValue">0.25</span>
+          </div>
+          <input id="stormLevel" type="range" min="0" max="1" step="0.01" value="0.25" />
+        </div>
+
+        <div class="control belts-only hidden">
+          <div class="row">
+            <label for="beltSpecies">Mapa de calor</label>
+            <span class="value" id="beltSpeciesValue">ambos</span>
+          </div>
+          <select id="beltSpecies">
+            <option value="both">ambos</option>
+            <option value="protons">prótons</option>
+            <option value="electrons">elétrons</option>
+          </select>
+        </div>
+
+        <div class="checks physical-checks">
+          <label><input id="showLines" type="checkbox" checked /> linhas</label>
+          <label><input id="showCone" type="checkbox" checked /> cone</label>
+          <label><input id="showPitch" type="checkbox" checked /> pitch</label>
+          <label class="physical-toggle"><input id="showInset" type="checkbox" checked /> inset</label>
+          <label class="physical-toggle"><input id="showDrift" type="checkbox" checked /> drift</label>
+          <label class="physical-toggle"><input id="showRealLarmor" type="checkbox" checked /> Larmor real</label>
+        </div>
+
+        <div class="button-row">
+          <button id="pauseBtn">Pausar</button>
+          <button id="cameraBtn">Enquadrar partícula</button>
+          <button id="resetBtn">Reiniciar</button>
+        </div>
+      </div>
+
+      <div id="status"></div>
+    </div>
+
+    <div id="inset">
+      <div id="insetTitle">Raio de Larmor real com inset ampliado</div>
+      <canvas id="larmorCanvas" width="550" height="240"></canvas>
+    </div>
+
+    <div id="footer">Escala global em raios terrestres · cinturões idealizados para vídeo</div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const C = 299792458;
+    const QE = 1.602176634e-19;
+    const ME = 9.1093837015e-31;
+    const MP = 1.67262192369e-27;
+    const RE_M = 6.371e6;
+    const B_SURFACE_EQ_T = 31.2e-6;
+    const TWO_PI = Math.PI * 2;
+
+    const app = document.getElementById('app');
+    const modeText = document.getElementById('modeText');
+    const statusBox = document.getElementById('status');
+    const inset = document.getElementById('inset');
+    const larmorCanvas = document.getElementById('larmorCanvas');
+    const larmorCtx = larmorCanvas.getContext('2d');
+
+    const ui = {
+      tabs: Array.from(document.querySelectorAll('.tab')),
+      pitch: document.getElementById('pitch'),
+      pitchValue: document.getElementById('pitchValue'),
+      species: document.getElementById('species'),
+      speciesValue: document.getElementById('speciesValue'),
+      energy: document.getElementById('energy'),
+      energyValue: document.getElementById('energyValue'),
+      l: document.getElementById('lshell'),
+      lValue: document.getElementById('lValue'),
+      speed: document.getElementById('speed'),
+      speedLabel: document.getElementById('speedLabel'),
+      speedValue: document.getElementById('speedValue'),
+      pause: document.getElementById('pauseBtn'),
+      camera: document.getElementById('cameraBtn'),
+      reset: document.getElementById('resetBtn'),
+      showLines: document.getElementById('showLines'),
+      showCone: document.getElementById('showCone'),
+      showPitch: document.getElementById('showPitch'),
+      showInset: document.getElementById('showInset'),
+      showDrift: document.getElementById('showDrift'),
+      showRealLarmor: document.getElementById('showRealLarmor'),
+      multiPreset: document.getElementById('multiPreset'),
+      multiCount: document.getElementById('multiCount'),
+      multiCountValue: document.getElementById('multiCountValue'),
+      multiCountSliderValue: document.getElementById('multiCountSliderValue'),
+      innerIntensity: document.getElementById('innerIntensity'),
+      outerIntensity: document.getElementById('outerIntensity'),
+      hissStrength: document.getElementById('hissStrength'),
+      stormLevel: document.getElementById('stormLevel'),
+      beltSpecies: document.getElementById('beltSpecies'),
+      innerValue: document.getElementById('innerValue'),
+      outerValue: document.getElementById('outerValue'),
+      hissValue: document.getElementById('hissValue'),
+      stormValue: document.getElementById('stormValue'),
+      beltSpeciesValue: document.getElementById('beltSpeciesValue'),
+    };
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x020611, 0.026);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 220);
+    camera.position.set(7.2, 3.4, 7.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    app.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.minDistance = 1.6;
+    controls.maxDistance = 32;
+
+    scene.add(new THREE.AmbientLight(0x93baff, 0.82));
+    const sunLight = new THREE.DirectionalLight(0xc8dcff, 1.35);
+    sunLight.position.set(5, 2.5, 6);
+    scene.add(sunLight);
+    const rimLight = new THREE.PointLight(0x55b7ff, 9, 24, 2);
+    rimLight.position.set(-5, 0, -5);
+    scene.add(rimLight);
+
+    const stars = createStars();
+    scene.add(stars);
+
+    const earthGroup = new THREE.Group();
+    scene.add(earthGroup);
+    const earth = new THREE.Mesh(
+      new THREE.SphereGeometry(1, 96, 96),
+      new THREE.MeshPhongMaterial({
+        color: 0x144d89,
+        shininess: 20,
+        specular: 0x4477aa,
+        emissive: 0x071629,
+        emissiveIntensity: 0.7,
+      })
+    );
+    earthGroup.add(earth);
+    const atmosphere = new THREE.Mesh(
+      new THREE.SphereGeometry(1.045, 96, 96),
+      new THREE.MeshBasicMaterial({
+        color: 0x82d7ff,
+        transparent: true,
+        opacity: 0.13,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    earthGroup.add(atmosphere);
+
+    const axisLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -3.2, 0), new THREE.Vector3(0, 3.2, 0)]),
+      new THREE.LineBasicMaterial({ color: 0x8aa6ff, transparent: true, opacity: 0.28 })
+    );
+    scene.add(axisLine);
+
+    const fieldGroup = new THREE.Group();
+    const pitchGuide = new THREE.Group();
+    const coneGroup = new THREE.Group();
+    const driftGroup = new THREE.Group();
+    const singleGroup = new THREE.Group();
+    const multiGroup = new THREE.Group();
+    const beltsGroup = new THREE.Group();
+    scene.add(fieldGroup, pitchGuide, coneGroup, driftGroup, singleGroup, multiGroup, beltsGroup);
+
+    const particle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.052, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0x8ffbff })
+    );
+    const particleGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0x75dfff, transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending })
+    );
+    const particleLight = new THREE.PointLight(0x86f1ff, 8, 3, 2);
+    singleGroup.add(particle, particleGlow, particleLight);
+
+    const gyroCloud = new THREE.Group();
+    const gyroCloudRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.16, 0.028, 16, 96),
+      new THREE.MeshBasicMaterial({ color: 0x8ffbff, transparent: true, opacity: 0.30, blending: THREE.AdditiveBlending })
+    );
+    const gyroCloudCore = new THREE.Mesh(
+      new THREE.SphereGeometry(0.095, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0x75dfff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending })
+    );
+    gyroCloud.add(gyroCloudRing, gyroCloudCore);
+    gyroCloud.visible = false;
+    scene.add(gyroCloud);
+
+    const realLarmorRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1, 0.06, 8, 64),
+      new THREE.MeshBasicMaterial({ color: 0xffdf6e, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending })
+    );
+    realLarmorRing.visible = false;
+    scene.add(realLarmorRing);
+
+    const trailLength = 150;
+    const trailPositions = new Float32Array(trailLength * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+    const trailLine = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({ color: 0xb3ffff, transparent: true, opacity: 0.40 }));
+    scene.add(trailLine);
+    const trail = [];
+
+    const burst = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 20, 20),
+      new THREE.MeshBasicMaterial({ color: 0x7bff9a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending })
+    );
+    burst.visible = false;
+    scene.add(burst);
+
+    const state = {
+      mode: 'didactic',
+      paused: false,
+      follow: false,
+      time: 0,
+      didacticSpeed: 1,
+      timeScale: 1e-4,
+      theta: Math.PI / 2,
+      phi: 0,
+      parallelSign: 1,
+      gyroPhase: 0,
+      burstTimer: 0,
+      multiParticles: [],
+      multiMeshes: [],
+      beltNeedsRebuild: true,
+      lastFieldPhi: null,
+    };
+
+    const clock = new THREE.Clock();
+
+    function createStars() {
+      const count = 1800;
+      const pos = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const r = 22 + Math.random() * 70;
+        const theta = Math.random() * TWO_PI;
+        const u = Math.random() * 2 - 1;
+        const phi = Math.acos(u);
+        pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        pos[i * 3 + 1] = r * Math.cos(phi);
+        pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xdff5ff, size: 0.05, transparent: true, opacity: 0.9 }));
+    }
+
+    function speciesInfo(kind = ui.species.value) {
+      if (kind === 'proton') return { name: 'próton', mass: MP, charge: QE, color: 0xff8b5e };
+      return { name: 'elétron', mass: ME, charge: -QE, color: 0x8ffbff };
+    }
+
+    function params() {
+      const L = Number(ui.l.value);
+      const pitchDeg = Number(ui.pitch.value);
+      const pitch = THREE.MathUtils.degToRad(pitchDeg);
+      const energyKeV = Number(ui.energy.value);
+      const species = speciesInfo();
+      const energyJ = energyKeV * 1000 * QE;
+      const gamma = 1 + energyJ / (species.mass * C * C);
+      const speed = C * Math.sqrt(Math.max(0, 1 - 1 / (gamma * gamma)));
+      const bEq = bEqTesla(L);
+      return { L, pitchDeg, pitch, energyKeV, species, energyJ, gamma, speed, bEq };
+    }
+
+    function bEqTesla(L) {
+      return B_SURFACE_EQ_T / Math.pow(L, 3);
+    }
+
+    function bNormTheta(theta) {
+      const s = Math.sin(theta);
+      const c = Math.cos(theta);
+      return Math.sqrt(1 + 3 * c * c) / Math.pow(Math.max(s, 1e-5), 6);
+    }
+
+    function mirrorColatitude(alphaEqRad) {
+      const target = 1 / Math.pow(Math.sin(alphaEqRad), 2);
+      let lo = 0.02;
+      let hi = Math.PI / 2;
+      for (let i = 0; i < 70; i++) {
+        const mid = 0.5 * (lo + hi);
+        if (bNormTheta(mid) > target) lo = mid;
+        else hi = mid;
+      }
+      return 0.5 * (lo + hi);
+    }
+
+    function lossCone(L) {
+      const atmosphereR = 1.1;
+      const thetaAtAtm = Math.asin(Math.sqrt(Math.min(1, atmosphereR / L)));
+      const ratio = bNormTheta(thetaAtAtm);
+      const alphaLC = Math.asin(Math.sqrt(1 / ratio));
+      return { thetaAtAtm, alphaLC };
+    }
+
+    function linePoint(L, theta, phi = 0) {
+      const s = Math.sin(theta);
+      const c = Math.cos(theta);
+      const r = L * s * s;
+      const rho = r * s;
+      return new THREE.Vector3(rho * Math.cos(phi), r * c, rho * Math.sin(phi));
+    }
+
+    function buildFieldLinePoints(L, phi, steps = 240) {
+      const pts = [];
+      const thetaMin = Math.max(0.13, Math.asin(Math.sqrt(Math.min(1, 1.02 / L))));
+      const thetaMax = Math.PI - thetaMin;
+      for (let i = 0; i < steps; i++) {
+        const t = i / (steps - 1);
+        pts.push(linePoint(L, thetaMin + t * (thetaMax - thetaMin), phi));
+      }
+      return pts;
+    }
+
+    function tangentAt(L, theta, phi) {
+      const eps = 1e-3;
+      const p1 = linePoint(L, Math.max(0.02, theta - eps), phi);
+      const p2 = linePoint(L, Math.min(Math.PI - 0.02, theta + eps), phi);
+      return p2.sub(p1).normalize();
+    }
+
+    function frameAt(L, theta, phi) {
+      const center = linePoint(L, theta, phi);
+      const tangent = tangentAt(L, theta, phi);
+      const radial = new THREE.Vector3(center.x, 0, center.z).normalize();
+      let normal = radial.cross(tangent);
+      if (normal.lengthSq() < 1e-8) normal = new THREE.Vector3(0, 0, 1).cross(tangent);
+      normal.normalize();
+      const binormal = tangent.clone().cross(normal).normalize();
+      return { center, tangent, normal, binormal };
+    }
+
+    function dsDTheta(L, theta) {
+      const s = Math.sin(theta);
+      const c = Math.cos(theta);
+      const dr = 2 * L * s * c;
+      const r = L * s * s;
+      return Math.sqrt(dr * dr + r * r);
+    }
+
+    function dipoleBVector(posRe) {
+      const r = Math.max(posRe.length(), 1e-5);
+      const rhat = posRe.clone().multiplyScalar(1 / r);
+      const m = new THREE.Vector3(0, 1, 0);
+      const mdotr = m.dot(rhat);
+      return rhat.multiplyScalar(3 * mdotr).sub(m).multiplyScalar(B_SURFACE_EQ_T / Math.pow(r, 3));
+    }
+
+    function driftAngularRate(p, theta, phi, vParallel, vPerp) {
+      if (!ui.showDrift.checked) return 0;
+      const species = p.species;
+      const pos = linePoint(p.L, theta, phi);
+      const B = dipoleBVector(pos);
+      const bMag = Math.max(B.length(), 1e-12);
+      const b = B.clone().multiplyScalar(1 / bMag);
+      const eps = 0.008;
+      const grad = new THREE.Vector3();
+      for (const [axis, vec] of [
+        ['x', new THREE.Vector3(eps, 0, 0)],
+        ['y', new THREE.Vector3(0, eps, 0)],
+        ['z', new THREE.Vector3(0, 0, eps)]
+      ]) {
+        const bp = dipoleBVector(pos.clone().add(vec)).length();
+        const bm = dipoleBVector(pos.clone().sub(vec)).length();
+        grad[axis] = (bp - bm) / (2 * eps * RE_M);
+      }
+      const bForward = dipoleBVector(pos.clone().add(b.clone().multiplyScalar(eps))).normalize();
+      const bBack = dipoleBVector(pos.clone().sub(b.clone().multiplyScalar(eps))).normalize();
+      const kappa = bForward.sub(bBack).multiplyScalar(1 / (2 * eps * RE_M));
+      const q = species.charge;
+      const gradDrift = b.clone().cross(grad).multiplyScalar(p.gamma * species.mass * vPerp * vPerp / (2 * q * bMag * bMag));
+      const curvDrift = b.clone().cross(kappa).multiplyScalar(p.gamma * species.mass * vParallel * vParallel / (q * bMag));
+      const drift = gradDrift.add(curvDrift);
+      const rho = Math.max(Math.hypot(pos.x, pos.z) * RE_M, 1);
+      const ePhi = new THREE.Vector3(-Math.sin(phi), 0, Math.cos(phi));
+      const phiDot = drift.dot(ePhi) / rho;
+      return THREE.MathUtils.clamp(phiDot, -0.02, 0.02);
+    }
+
+    function rebuildFieldLines(activeL = params().L, activePhi = state.phi) {
+      clearGroup(fieldGroup);
+      if (!ui.showLines.checked) return;
+      const inactiveMat = new THREE.LineBasicMaterial({ color: 0x507dcf, transparent: true, opacity: 0.24 });
+      const activeMat = new THREE.LineBasicMaterial({ color: 0x7ce8ff, transparent: true, opacity: 0.95 });
+      const shells = state.mode === 'belts'
+        ? [1.5, 2.0, 2.7, 3.4, 4.5, 5.8, 7.0]
+        : uniqueShells([1.5, 2.0, 2.7, activeL, 4.2, 5.6, 7.0]);
+      const phis = state.mode === 'physical' ? [activePhi] : [0, Math.PI / 3, 2 * Math.PI / 3, Math.PI, 4 * Math.PI / 3, 5 * Math.PI / 3];
+      for (const L of shells) {
+        for (const phi of phis) {
+          const line = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(buildFieldLinePoints(L, phi, 220)),
+            Math.abs(L - activeL) < 1e-6 && Math.abs(wrapAngle(phi - activePhi)) < 1e-6 ? activeMat : inactiveMat
+          );
+          fieldGroup.add(line);
+        }
+      }
+    }
+
+    function uniqueShells(values) {
+      return Array.from(new Set(values.map((v) => Number(v.toFixed(2))))).sort((a, b) => a - b);
+    }
+
+    function wrapAngle(a) {
+      return Math.atan2(Math.sin(a), Math.cos(a));
+    }
+
+    function clearGroup(group) {
+      while (group.children.length) {
+        const obj = group.children.pop();
+        obj.traverse((child) => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) child.material.dispose();
+        });
+      }
+    }
+
+    function updatePitchGuide(L, phi) {
+      clearGroup(pitchGuide);
+      if (!ui.showPitch.checked || state.mode === 'belts') return;
+      const p = params();
+      const { center, tangent, normal } = frameAt(L, Math.PI / 2, phi);
+      const alpha = p.pitch;
+      const origin = center.clone();
+      const tangentEnd = origin.clone().add(tangent.clone().multiplyScalar(0.55));
+      const velocityDir = tangent.clone().multiplyScalar(Math.cos(alpha)).add(normal.clone().multiplyScalar(Math.sin(alpha))).normalize();
+      const velocityEnd = origin.clone().add(velocityDir.multiplyScalar(0.68));
+      const arcPts = [];
+      for (let i = 0; i <= 28; i++) {
+        const a = alpha * i / 28;
+        const dir = tangent.clone().multiplyScalar(Math.cos(a)).add(normal.clone().multiplyScalar(Math.sin(a))).normalize();
+        arcPts.push(origin.clone().add(dir.multiplyScalar(0.30)));
+      }
+      pitchGuide.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([origin, tangentEnd]), new THREE.LineBasicMaterial({ color: 0x9bdcff, transparent: true, opacity: 0.76 })));
+      pitchGuide.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([origin, velocityEnd]), new THREE.LineBasicMaterial({ color: 0xffdf6e, transparent: true, opacity: 0.98 })));
+      pitchGuide.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arcPts), new THREE.LineBasicMaterial({ color: 0xffdf6e, transparent: true, opacity: 0.75 })));
+      pitchGuide.add(new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 14), new THREE.MeshBasicMaterial({ color: 0xfff2a3 }))).position.copy(origin);
+    }
+
+    function updateLossCone(L) {
+      clearGroup(coneGroup);
+      if (!ui.showCone.checked || state.mode === 'belts') return;
+      const { thetaAtAtm } = lossCone(L);
+      const north = linePoint(L, thetaAtAtm, state.phi);
+      const south = linePoint(L, Math.PI - thetaAtAtm, state.phi);
+      for (const p of [north, south]) {
+        const cap = new THREE.Mesh(
+          new THREE.SphereGeometry(0.09, 18, 18),
+          new THREE.MeshBasicMaterial({ color: 0x7bff9a, transparent: true, opacity: 0.33, blending: THREE.AdditiveBlending })
+        );
+        cap.position.copy(p);
+        coneGroup.add(cap);
+      }
+    }
+
+    function physicalSnapshot(theta = state.theta, L = params().L) {
+      const p = params();
+      const BByBeq = bNormTheta(theta);
+      const bLocal = p.bEq * BByBeq;
+      const sinAlphaLocal = Math.min(1, Math.sin(p.pitch) * Math.sqrt(BByBeq));
+      const localPitch = Math.asin(sinAlphaLocal);
+      const vPerp = p.speed * sinAlphaLocal;
+      const vParallel = p.speed * Math.cos(localPitch);
+      const omegaC = Math.abs(p.species.charge) * bLocal / (p.gamma * p.species.mass);
+      const fC = omegaC / TWO_PI;
+      const rL = omegaC > 0 ? vPerp / omegaC : 0;
+      const mirror = mirrorColatitude(p.pitch);
+      const bounceSeconds = approximateBouncePeriod(p.L, p.speed, p.pitch);
+      return { ...p, BByBeq, bLocal, localPitch, vPerp, vParallel, omegaC, fC, rL, mirror, bounceSeconds };
+    }
+
+    function approximateBouncePeriod(L, speed, alphaEq) {
+      const mirror = mirrorColatitude(alphaEq);
+      let s = 0;
+      let lastTheta = mirror;
+      const steps = 140;
+      for (let i = 1; i <= steps; i++) {
+        const theta = mirror + (Math.PI / 2 - mirror) * i / steps;
+        const mid = 0.5 * (theta + lastTheta);
+        const sinAlphaLocal = Math.min(1, Math.sin(alphaEq) * Math.sqrt(bNormTheta(mid)));
+        const vPar = speed * Math.sqrt(Math.max(1e-6, 1 - sinAlphaLocal * sinAlphaLocal));
+        s += dsDTheta(L, mid) * RE_M * (theta - lastTheta) / vPar;
+        lastTheta = theta;
+      }
+      return 4 * s;
+    }
+
+    function resetSingle() {
+      state.time = 0;
+      state.theta = Math.PI / 2;
+      state.phi = 0;
+      state.parallelSign = 1;
+      state.gyroPhase = 0;
+      state.burstTimer = 0;
+      trail.length = 0;
+      burst.visible = false;
+      gyroCloud.visible = false;
+      realLarmorRing.visible = false;
+      for (let i = 0; i < trailLength; i++) {
+        trailPositions[i * 3] = 0;
+        trailPositions[i * 3 + 1] = 0;
+        trailPositions[i * 3 + 2] = 0;
+      }
+      trailGeo.attributes.position.needsUpdate = true;
+    }
+
+    function updateDidactic(dt) {
+      const p = params();
+      const { alphaLC, thetaAtAtm } = lossCone(p.L);
+      const inLossCone = p.pitch < alphaLC;
+      const bounceFreq = 0.55;
+      const gyroFreq = 24.0;
+      let theta;
+      let precipitating = false;
+      if (inLossCone) {
+        const phase = (state.time * bounceFreq * 2) % 2;
+        theta = phase < 1
+          ? THREE.MathUtils.lerp(thetaAtAtm, Math.PI - thetaAtAtm, phase)
+          : THREE.MathUtils.lerp(Math.PI - thetaAtAtm, thetaAtAtm, phase - 1);
+        precipitating = theta <= thetaAtAtm + 0.015 || theta >= Math.PI - thetaAtAtm - 0.015;
+      } else {
+        const lambdaM = Math.PI / 2 - mirrorColatitude(p.pitch);
+        theta = Math.PI / 2 - lambdaM * Math.sin(state.time * bounceFreq * TWO_PI);
+      }
+      const BByBeq = bNormTheta(theta);
+      const localPitch = Math.asin(Math.min(1, Math.sin(p.pitch) * Math.sqrt(BByBeq)));
+      const { center, normal, binormal } = frameAt(p.L, theta, 0);
+      const gyroradius = 0.12 / Math.sqrt(BByBeq) * (0.55 + 0.45 * Math.sin(localPitch));
+      const gyroPhase = state.time * gyroFreq * TWO_PI;
+      const pos = center.clone()
+        .add(normal.clone().multiplyScalar(Math.cos(gyroPhase) * gyroradius))
+        .add(binormal.clone().multiplyScalar(Math.sin(gyroPhase) * gyroradius));
+      renderSingle({ pos, center, theta, localPitch, precipitating, larmorRe: gyroradius, useCloud: false, tangent: tangentAt(p.L, theta, 0), dt });
+      updateStatusDidactic(theta, localPitch, inLossCone);
+    }
+
+    function updatePhysical(physicalDt, visualDt) {
+      const p = params();
+      const { alphaLC, thetaAtAtm } = lossCone(p.L);
+      const inLossCone = p.pitch < alphaLC;
+      const mirror = inLossCone ? thetaAtAtm : mirrorColatitude(p.pitch);
+      const mirrorEps = 8e-4;
+      if (physicalDt > 0) {
+        const steps = Math.max(1, Math.ceil(physicalDt / 0.0005));
+        const subDt = physicalDt / steps;
+        for (let i = 0; i < steps; i++) {
+          const snap = physicalSnapshot(state.theta, p.L);
+          const vParallelAbs = Math.abs(snap.vParallel);
+          const dTheta = state.parallelSign * (vParallelAbs * subDt) / (RE_M * dsDTheta(p.L, state.theta));
+          state.theta += dTheta;
+          const phiDot = driftAngularRate(p, state.theta, state.phi, snap.vParallel, snap.vPerp);
+          state.phi += phiDot * subDt;
+          if (state.theta <= mirror) {
+            state.theta = mirror + mirrorEps;
+            state.parallelSign = 1;
+            if (inLossCone) triggerBurst(linePoint(p.L, thetaAtAtm, state.phi));
+          } else if (state.theta >= Math.PI - mirror) {
+            state.theta = Math.PI - mirror - mirrorEps;
+            state.parallelSign = -1;
+            if (inLossCone) triggerBurst(linePoint(p.L, Math.PI - thetaAtAtm, state.phi));
+          }
+        }
+      }
+      const snap = physicalSnapshot(state.theta, p.L);
+      const { center, tangent, normal, binormal } = frameAt(p.L, state.theta, state.phi);
+      state.gyroPhase = (state.gyroPhase + snap.omegaC * physicalDt) % TWO_PI;
+      const larmorRe = snap.rL / RE_M;
+      const gyroTurns = Math.abs(snap.omegaC * physicalDt) / TWO_PI;
+      const useCloud = gyroTurns > 0.35;
+      const pos = center.clone()
+        .add(normal.clone().multiplyScalar(Math.cos(state.gyroPhase) * larmorRe))
+        .add(binormal.clone().multiplyScalar(Math.sin(state.gyroPhase) * larmorRe));
+      const phiDot = driftAngularRate(p, state.theta, state.phi, snap.vParallel, snap.vPerp);
+      renderSingle({ pos, center, theta: state.theta, localPitch: snap.localPitch, precipitating: false, larmorRe, useCloud, tangent, dt: visualDt });
+      updateRealLarmorRing(center, tangent, larmorRe);
+      updateLarmorInset(snap, gyroTurns, useCloud);
+      updateStatusPhysical(snap, phiDot, gyroTurns, useCloud);
+    }
+
+    function renderSingle({ pos, center, theta, localPitch, precipitating, larmorRe, useCloud, tangent, dt }) {
+      if (useCloud) {
+        singleGroup.visible = false;
+        gyroCloud.visible = true;
+        gyroCloud.position.copy(center);
+        gyroCloud.scale.setScalar(Math.max(0.25, Math.min(2.5, larmorRe / 0.00005)));
+        gyroCloud.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent.clone().normalize());
+      } else {
+        singleGroup.visible = true;
+        gyroCloud.visible = false;
+        singleGroup.position.copy(pos);
+      }
+      const trailPoint = useCloud ? center.clone() : pos.clone();
+      trail.unshift(trailPoint);
+      while (trail.length > trailLength) trail.pop();
+      for (let i = 0; i < trailLength; i++) {
+        const t = trail[i] || trailPoint;
+        trailPositions[i * 3] = t.x;
+        trailPositions[i * 3 + 1] = t.y;
+        trailPositions[i * 3 + 2] = t.z;
+      }
+      trailGeo.attributes.position.needsUpdate = true;
+      if (precipitating) triggerBurst(center);
+      updateBurst(dt);
+      if (state.follow) {
+        const desired = center.clone().add(new THREE.Vector3(1.8, 0.9, 1.8));
+        camera.position.lerp(desired, 0.035);
+        controls.target.lerp(center, 0.065);
+      }
+    }
+
+    function triggerBurst(pos) {
+      if (state.burstTimer > 0) return;
+      burst.visible = true;
+      burst.position.copy(pos.clone().normalize().multiplyScalar(1.1));
+      burst.scale.setScalar(1);
+      state.burstTimer = 0.5;
+    }
+
+    function updateBurst(dt) {
+      if (state.burstTimer > 0) {
+        state.burstTimer -= dt;
+        const a = Math.max(0, state.burstTimer / 0.5);
+        burst.material.opacity = 0.34 * a;
+        burst.scale.setScalar(1 + 4.2 * (1 - a));
+      } else {
+        burst.visible = false;
+      }
+    }
+
+    function updateRealLarmorRing(center, tangent, larmorRe) {
+      realLarmorRing.visible = ui.showRealLarmor.checked && state.mode === 'physical' && larmorRe > 0;
+      if (!realLarmorRing.visible) return;
+      realLarmorRing.position.copy(center);
+      realLarmorRing.scale.set(larmorRe, larmorRe, larmorRe);
+      realLarmorRing.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tangent.clone().normalize());
+    }
+
+    function updateLarmorInset(snap, gyroTurns, useCloud) {
+      inset.classList.toggle('hidden', !ui.showInset.checked || state.mode !== 'physical');
+      if (inset.classList.contains('hidden')) return;
+      const w = larmorCanvas.width;
+      const h = larmorCanvas.height;
+      larmorCtx.clearRect(0, 0, w, h);
+      larmorCtx.fillStyle = '#06101f';
+      larmorCtx.fillRect(0, 0, w, h);
+      larmorCtx.strokeStyle = 'rgba(155,220,255,0.36)';
+      larmorCtx.lineWidth = 2;
+      larmorCtx.beginPath();
+      larmorCtx.moveTo(40, h / 2);
+      larmorCtx.lineTo(w - 40, h / 2);
+      larmorCtx.stroke();
+      const radiusPx = Math.max(7, Math.min(70, Math.log10(Math.max(1, snap.rL)) * 13));
+      larmorCtx.strokeStyle = '#ffdf6e';
+      larmorCtx.lineWidth = 4;
+      larmorCtx.beginPath();
+      larmorCtx.arc(w / 2, h / 2, radiusPx, 0, TWO_PI);
+      larmorCtx.stroke();
+      larmorCtx.fillStyle = '#8ffbff';
+      larmorCtx.beginPath();
+      larmorCtx.arc(w / 2 + radiusPx, h / 2, 7, 0, TWO_PI);
+      larmorCtx.fill();
+      larmorCtx.fillStyle = '#eaf6ff';
+      larmorCtx.font = '24px system-ui';
+      larmorCtx.fillText(`rL = ${formatMeters(snap.rL)}`, 18, 34);
+      larmorCtx.font = '19px system-ui';
+      larmorCtx.fillText(`f_c = ${formatHz(snap.fC)} · ${gyroTurns.toFixed(1)} giros/frame`, 18, h - 48);
+      larmorCtx.fillText(useCloud ? 'cena principal: nuvem média' : 'cena principal: fase amostrada', 18, h - 18);
+    }
+
+    function updateMulti(physicalDt) {
+      if (state.multiParticles.length !== Number(ui.multiCount.value)) buildMultiParticles();
+      for (const mp of state.multiParticles) {
+        stepGuidingCenter(mp, physicalDt);
+        mp.mesh.position.copy(linePoint(mp.L, mp.theta, mp.phi));
+        mp.trail.unshift(mp.mesh.position.clone());
+        while (mp.trail.length > 42) mp.trail.pop();
+        const arr = mp.trailPositions;
+        for (let i = 0; i < 42; i++) {
+          const p = mp.trail[i] || mp.mesh.position;
+          arr[i * 3] = p.x;
+          arr[i * 3 + 1] = p.y;
+          arr[i * 3 + 2] = p.z;
+        }
+        mp.trailLine.geometry.attributes.position.needsUpdate = true;
+      }
+      const Ls = state.multiParticles.map((p) => p.L);
+      const pitches = state.multiParticles.map((p) => THREE.MathUtils.radToDeg(p.pitch));
+      statusBox.textContent = [
+        'MODO: múltiplas partículas',
+        `Partículas: ${state.multiParticles.length} · preset: ${ui.multiPreset.options[ui.multiPreset.selectedIndex].text}`,
+        `L médio: ${avg(Ls).toFixed(2)} Re · faixa: ${Math.min(...Ls).toFixed(2)}-${Math.max(...Ls).toFixed(2)} Re`,
+        `Pitch médio: ${avg(pitches).toFixed(1)}°`,
+        'Cada centro-guia faz bounce e drift; a fase ciclotrônica individual é agregada.'
+      ].join('\n');
+    }
+
+    function stepGuidingCenter(mp, dt) {
+      if (dt <= 0) return;
+      const { alphaLC, thetaAtAtm } = lossCone(mp.L);
+      const inLossCone = mp.pitch < alphaLC;
+      const mirror = inLossCone ? thetaAtAtm : mirrorColatitude(mp.pitch);
+      const eps = 8e-4;
+      const steps = Math.max(1, Math.ceil(dt / 0.001));
+      const subDt = dt / steps;
+      for (let i = 0; i < steps; i++) {
+        const BByBeq = bNormTheta(mp.theta);
+        const sinAlpha = Math.min(1, Math.sin(mp.pitch) * Math.sqrt(BByBeq));
+        const vPar = mp.speed * Math.sqrt(Math.max(0, 1 - sinAlpha * sinAlpha));
+        mp.theta += mp.sign * (vPar * subDt) / (RE_M * dsDTheta(mp.L, mp.theta));
+        const vPerp = mp.speed * sinAlpha;
+        const fakeP = { L: mp.L, species: mp.species, gamma: mp.gamma };
+        mp.phi += driftAngularRate(fakeP, mp.theta, mp.phi, vPar, vPerp) * subDt;
+        if (mp.theta <= mirror) {
+          mp.theta = mirror + eps;
+          mp.sign = 1;
+        } else if (mp.theta >= Math.PI - mirror) {
+          mp.theta = Math.PI - mirror - eps;
+          mp.sign = -1;
+        }
+      }
+    }
+
+    function buildMultiParticles() {
+      clearGroup(multiGroup);
+      state.multiParticles = [];
+      const count = Number(ui.multiCount.value);
+      const base = params();
+      const preset = ui.multiPreset.value;
+      for (let i = 0; i < count; i++) {
+        let L = base.L;
+        let pitch = base.pitch;
+        let phi = 0;
+        if (preset === 'sameL') {
+          pitch = THREE.MathUtils.degToRad(12 + 68 * i / Math.max(1, count - 1));
+          phi = (i / count) * 0.35;
+        } else if (preset === 'sameMeridian') {
+          L = 1.45 + 5.4 * i / Math.max(1, count - 1);
+          pitch = base.pitch;
+        } else {
+          L = 1.45 + Math.random() * 5.6;
+          pitch = THREE.MathUtils.degToRad(10 + Math.random() * 72);
+          phi = Math.random() * TWO_PI;
+        }
+        const species = Math.random() < 0.5 ? speciesInfo('electron') : speciesInfo('proton');
+        const energyKeV = species.name === 'próton' ? 500 + Math.random() * 1600 : 80 + Math.random() * 900;
+        const gamma = 1 + energyKeV * 1000 * QE / (species.mass * C * C);
+        const speed = C * Math.sqrt(Math.max(0, 1 - 1 / (gamma * gamma)));
+        const mesh = new THREE.Mesh(
+          new THREE.SphereGeometry(count > 70 ? 0.025 : 0.035, 10, 10),
+          new THREE.MeshBasicMaterial({ color: species.color, transparent: true, opacity: 0.9 })
+        );
+        const trailPositionsLocal = new Float32Array(42 * 3);
+        const trailLineLocal = new THREE.Line(
+          new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(trailPositionsLocal, 3)),
+          new THREE.LineBasicMaterial({ color: species.color, transparent: true, opacity: 0.22 })
+        );
+        multiGroup.add(mesh, trailLineLocal);
+        state.multiParticles.push({
+          L, pitch, phi, theta: Math.PI / 2, sign: i % 2 ? -1 : 1,
+          species, energyKeV, gamma, speed,
+          mesh, trailLine: trailLineLocal, trailPositions: trailPositionsLocal, trail: []
+        });
+      }
+    }
+
+    function updateBelts(dt) {
+      if (state.beltNeedsRebuild) rebuildBelts();
+      beltsGroup.rotation.y += dt * 0.035;
+      statusBox.textContent = [
+        'MODO: cinturões de Van Allen idealizados',
+        `Interno: prótons energéticos, pico L ≈ 1.5-2.2 · intensidade ${Number(ui.innerIntensity.value).toFixed(2)}`,
+        `Slot: plasmasfera/hiss espalha pitch angle → cone de perda · força ${Number(ui.hissStrength.value).toFixed(2)}`,
+        `Externo: elétrons energéticos, pico L ≈ 4-6 · intensidade ${Number(ui.outerIntensity.value).toFixed(2)}`,
+        `Atividade geomagnética idealizada: ${Number(ui.stormLevel.value).toFixed(2)}`
+      ].join('\n');
+    }
+
+    function rebuildBelts() {
+      clearGroup(beltsGroup);
+      state.beltNeedsRebuild = false;
+      const innerI = Number(ui.innerIntensity.value);
+      const outerI = Number(ui.outerIntensity.value);
+      const hiss = Number(ui.hissStrength.value);
+      const storm = Number(ui.stormLevel.value);
+      const filter = ui.beltSpecies.value;
+      const plasmasphereR = 2.7 + 1.0 * (1 - storm);
+      const plasma = new THREE.Mesh(
+        new THREE.SphereGeometry(plasmasphereR, 64, 32),
+        new THREE.MeshBasicMaterial({ color: 0x66c7ff, transparent: true, opacity: 0.07 + 0.08 * hiss, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+      );
+      beltsGroup.add(plasma);
+      if (filter !== 'electrons') {
+        addBeltRings({ centerL: 1.85, sigma: 0.32, width: 0.14, colorHot: 0xff6238, colorCold: 0xffc066, intensity: innerI, count: 16 });
+      }
+      if (filter !== 'protons') {
+        const outerCenter = 4.9 - 0.55 * storm;
+        addBeltRings({ centerL: outerCenter, sigma: 0.70 + 0.45 * storm, width: 0.20, colorHot: 0xff3cbd, colorCold: 0x66d9ff, intensity: outerI, count: 22 });
+      }
+      addSlotMarker(2.85, 0.42 + 0.25 * hiss);
+    }
+
+    function addBeltRings({ centerL, sigma, width, colorHot, colorCold, intensity, count }) {
+      for (let i = 0; i < count; i++) {
+        const x = (i / (count - 1) - 0.5) * sigma * 5.0;
+        const L = centerL + x;
+        if (L < 1.12) continue;
+        const density = intensity * Math.exp(-(x * x) / (2 * sigma * sigma));
+        if (density < 0.02) continue;
+        const color = new THREE.Color(colorCold).lerp(new THREE.Color(colorHot), Math.min(1, density));
+        const mat = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: Math.min(0.52, 0.08 + 0.30 * density),
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+        });
+        const torus = new THREE.Mesh(new THREE.TorusGeometry(L, width + 0.05 * density, 18, 160), mat);
+        torus.rotation.x = Math.PI / 2;
+        torus.scale.y = 0.48;
+        beltsGroup.add(torus);
+      }
+    }
+
+    function addSlotMarker(L, width) {
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(L, width, 18, 160),
+        new THREE.MeshBasicMaterial({ color: 0x081020, transparent: true, opacity: 0.58, side: THREE.DoubleSide })
+      );
+      torus.rotation.x = Math.PI / 2;
+      torus.scale.y = 0.50;
+      beltsGroup.add(torus);
+    }
+
+    function updateStatusDidactic(theta, localPitch, inLossCone) {
+      const p = params();
+      const lc = lossCone(p.L);
+      statusBox.textContent = [
+        'MODO: didático conceitual',
+        `Pitch no equador: ${p.pitchDeg.toFixed(0)}° · cone de perda ≈ ${THREE.MathUtils.radToDeg(lc.alphaLC).toFixed(1)}°`,
+        inLossCone ? 'Regime: cone de perda → precipitação auroral.' : `Regime: espelho magnético → bounce em ±${THREE.MathUtils.radToDeg(Math.PI / 2 - mirrorColatitude(p.pitch)).toFixed(1)}°`,
+        `Latitude instantânea: ${(90 - THREE.MathUtils.radToDeg(theta)).toFixed(1)}°`,
+        `Pitch local: ${THREE.MathUtils.radToDeg(localPitch).toFixed(1)}°`
+      ].join('\n');
+    }
+
+    function updateStatusPhysical(snap, phiDot, gyroTurns, useCloud) {
+      const lat = 90 - THREE.MathUtils.radToDeg(state.theta);
+      statusBox.textContent = [
+        'MODO: físico em medidas reais',
+        `${snap.species.name} · L = ${snap.L.toFixed(2)} Re · B_eq = ${(snap.bEq * 1e6).toFixed(3)} µT`,
+        `Energia = ${snap.energyKeV.toFixed(0)} keV · γ = ${snap.gamma.toFixed(5)} · |v| = ${(snap.speed / 1e6).toFixed(2)} Mm/s`,
+        `f_c local = ${formatHz(snap.fC)} · r_L real = ${formatMeters(snap.rL)}`,
+        `Latitude = ${lat.toFixed(1)}° · pitch local = ${THREE.MathUtils.radToDeg(snap.localPitch).toFixed(1)}°`,
+        `Bounce aprox. = ${formatSeconds(snap.bounceSeconds)} · drift = ${THREE.MathUtils.radToDeg(phiDot).toExponential(2)} °/s`,
+        useCloud ? `Giro agregado: ${gyroTurns.toFixed(1)} giros/frame → nuvem média.` : `Giro amostrado: ${gyroTurns.toFixed(2)} giros/frame.`
+      ].join('\n');
+    }
+
+    function formatHz(v) {
+      if (v >= 1e6) return `${(v / 1e6).toFixed(2)} MHz`;
+      if (v >= 1e3) return `${(v / 1e3).toFixed(2)} kHz`;
+      return `${v.toFixed(2)} Hz`;
+    }
+
+    function formatMeters(v) {
+      if (v >= 1000) return `${(v / 1000).toFixed(2)} km`;
+      if (v >= 1) return `${v.toFixed(2)} m`;
+      if (v >= 0.001) return `${(v * 1000).toFixed(2)} mm`;
+      return `${(v * 1e6).toFixed(2)} µm`;
+    }
+
+    function formatSeconds(v) {
+      if (!Number.isFinite(v)) return '—';
+      if (v >= 60) return `${(v / 60).toFixed(2)} min`;
+      if (v >= 1) return `${v.toFixed(2)} s`;
+      return `${(v * 1000).toFixed(1)} ms`;
+    }
+
+    function avg(values) {
+      return values.reduce((a, b) => a + b, 0) / Math.max(1, values.length);
+    }
+
+    function updateControlVisibility() {
+      const isDidactic = state.mode === 'didactic';
+      const isPhysical = state.mode === 'physical';
+      const isMulti = state.mode === 'multi';
+      const isBelts = state.mode === 'belts';
+      document.querySelectorAll('.physical-only').forEach((el) => el.classList.toggle('hidden', !(isPhysical || isMulti)));
+      document.querySelectorAll('.multi-only').forEach((el) => el.classList.toggle('hidden', !isMulti));
+      document.querySelectorAll('.belts-only').forEach((el) => el.classList.toggle('hidden', !isBelts));
+      document.querySelectorAll('.one-particle').forEach((el) => el.classList.toggle('hidden', isBelts || isMulti));
+      document.querySelectorAll('.physical-toggle').forEach((el) => el.classList.toggle('hidden', !isPhysical));
+      document.querySelector('.physical-checks').classList.toggle('hidden', isBelts);
+      ui.camera.classList.toggle('hidden', isMulti || isBelts);
+      ui.speedLabel.textContent = isDidactic ? 'Velocidade da animação' : 'Escala temporal física';
+      if (isDidactic) {
+        ui.speed.min = '0.01';
+        ui.speed.max = '2.5';
+        ui.speed.step = '0.01';
+        ui.speed.value = String(state.didacticSpeed);
+      } else {
+        ui.speed.min = '-6';
+        ui.speed.max = '0';
+        ui.speed.step = '0.25';
+        ui.speed.value = String(Math.log10(state.timeScale));
+      }
+      modeText.textContent = {
+        didactic: 'Bounce, cone de perda e aurora sem compromisso com escala física.',
+        physical: 'Partícula única com L-shell, campo dipolar, Larmor real, bounce e drift azimutal.',
+        multi: 'Populações de centros-guias em diferentes L, pitch e espécies.',
+        belts: 'Mapa de calor idealizado: cinturão interno, slot region, plasmasfera e cinturão externo.',
+      }[state.mode];
+      updateSpeedLabel();
+      inset.classList.toggle('hidden', !(isPhysical && ui.showInset.checked));
+    }
+
+    function updateSpeedLabel() {
+      ui.speedValue.textContent = state.mode === 'didactic'
+        ? `${state.didacticSpeed < 0.1 ? state.didacticSpeed.toFixed(2) : state.didacticSpeed.toFixed(1)}×`
+        : `10^${Math.log10(state.timeScale).toFixed(1)}×`;
+    }
+
+    function syncLabels() {
+      const p = params();
+      ui.pitchValue.textContent = `${p.pitchDeg.toFixed(0)}°`;
+      ui.speciesValue.textContent = p.species.name;
+      ui.energyValue.textContent = `${p.energyKeV.toFixed(0)} keV`;
+      ui.lValue.textContent = `${p.L.toFixed(2)} Re`;
+      ui.multiCountValue.textContent = String(Number(ui.multiCount.value));
+      ui.multiCountSliderValue.textContent = String(Number(ui.multiCount.value));
+      ui.innerValue.textContent = Number(ui.innerIntensity.value).toFixed(2);
+      ui.outerValue.textContent = Number(ui.outerIntensity.value).toFixed(2);
+      ui.hissValue.textContent = Number(ui.hissStrength.value).toFixed(2);
+      ui.stormValue.textContent = Number(ui.stormLevel.value).toFixed(2);
+      ui.beltSpeciesValue.textContent = ui.beltSpecies.options[ui.beltSpecies.selectedIndex].text;
+    }
+
+    function setMode(mode) {
+      state.mode = mode;
+      ui.tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.mode === mode));
+      singleGroup.visible = mode === 'didactic' || mode === 'physical';
+      multiGroup.visible = mode === 'multi';
+      beltsGroup.visible = mode === 'belts';
+      trailLine.visible = mode !== 'belts';
+      gyroCloud.visible = false;
+      realLarmorRing.visible = false;
+      resetSingle();
+      if (mode === 'multi') buildMultiParticles();
+      if (mode === 'belts') state.beltNeedsRebuild = true;
+      state.lastFieldPhi = null;
+      updateControlVisibility();
+      rebuildFieldLines(params().L, state.phi);
+      updatePitchGuide(params().L, state.phi);
+      updateLossCone(params().L);
+    }
+
+    function onParamChange({ reset = true, rebuildMulti = false, rebuildBeltsNow = false } = {}) {
+      syncLabels();
+      if (state.mode === 'didactic') {
+        state.didacticSpeed = Number(ui.speed.value);
+      } else if (ui.speed === document.activeElement || state.mode !== 'didactic') {
+        state.timeScale = Math.pow(10, Number(ui.speed.value));
+      }
+      if (reset) resetSingle();
+      if (rebuildMulti || state.mode === 'multi') buildMultiParticles();
+      if (rebuildBeltsNow || state.mode === 'belts') state.beltNeedsRebuild = true;
+      updateSpeedLabel();
+      rebuildFieldLines(params().L, state.phi);
+      updatePitchGuide(params().L, state.phi);
+      updateLossCone(params().L);
+    }
+
+    ui.tabs.forEach((tab) => tab.addEventListener('click', () => setMode(tab.dataset.mode)));
+    [ui.pitch, ui.species, ui.energy, ui.l].forEach((el) => el.addEventListener('input', () => onParamChange({ reset: true, rebuildMulti: true })));
+    ui.speed.addEventListener('input', () => {
+      if (state.mode === 'didactic') state.didacticSpeed = Number(ui.speed.value);
+      else state.timeScale = Math.pow(10, Number(ui.speed.value));
+      updateSpeedLabel();
+    });
+    [ui.showLines, ui.showCone, ui.showPitch, ui.showInset, ui.showDrift, ui.showRealLarmor].forEach((el) => el.addEventListener('change', () => onParamChange({ reset: false })));
+    [ui.multiPreset, ui.multiCount].forEach((el) => el.addEventListener('input', () => onParamChange({ reset: false, rebuildMulti: true })));
+    [ui.innerIntensity, ui.outerIntensity, ui.hissStrength, ui.stormLevel, ui.beltSpecies].forEach((el) => el.addEventListener('input', () => {
+      syncLabels();
+      state.beltNeedsRebuild = true;
+    }));
+    ui.pause.addEventListener('click', () => {
+      state.paused = !state.paused;
+      ui.pause.textContent = state.paused ? 'Retomar' : 'Pausar';
+    });
+    ui.camera.addEventListener('click', () => {
+      state.follow = !state.follow;
+      ui.camera.textContent = state.follow ? 'Soltar câmera' : 'Enquadrar partícula';
+    });
+    ui.reset.addEventListener('click', () => {
+      resetSingle();
+      if (state.mode === 'multi') buildMultiParticles();
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const visualDt = Math.min(clock.getDelta(), 0.03);
+      const dt = state.paused ? 0 : (state.mode === 'didactic' ? visualDt * state.didacticSpeed : visualDt * state.timeScale);
+      if (!state.paused) state.time += dt;
+      earth.rotation.y += visualDt * 0.04;
+      atmosphere.rotation.y += visualDt * 0.055;
+      stars.rotation.y += visualDt * 0.0035;
+      if (state.mode === 'didactic') updateDidactic(visualDt);
+      else if (state.mode === 'physical') updatePhysical(dt, visualDt);
+      else if (state.mode === 'multi') updateMulti(dt);
+      else updateBelts(visualDt);
+      if (state.mode === 'physical') {
+        if (state.lastFieldPhi === null || Math.abs(wrapAngle(state.phi - state.lastFieldPhi)) > 0.02) {
+          state.lastFieldPhi = state.phi;
+          rebuildFieldLines(params().L, state.phi);
+          updatePitchGuide(params().L, state.phi);
+          updateLossCone(params().L);
+        }
+      }
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    syncLabels();
+    setMode('didactic');
+    animate();
+  </script>
+</body>
+</html>
